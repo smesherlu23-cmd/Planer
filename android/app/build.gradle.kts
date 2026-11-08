@@ -6,7 +6,8 @@ plugins {
 
 android {
     namespace = "io.github.smesherlu23cmd.planer"
-    compileSdk = flutter.compileSdkVersion
+    // Плагин уведомлений и androidx.core требуют компиляции под API 37.
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {
