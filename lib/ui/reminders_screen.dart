@@ -5,6 +5,7 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import 'common.dart';
+import 'theme.dart';
 
 class RemindersScreen extends StatelessWidget {
   const RemindersScreen({super.key});
@@ -14,7 +15,11 @@ class RemindersScreen extends StatelessWidget {
     final db = context.db;
     return Scaffold(
       appBar: AppBar(title: const Text('Напоминания')),
-      floatingActionButton: FloatingActionButton(heroTag: null, onPressed: () => editReminder(context, null), child: const Icon(Icons.add)),
+      floatingActionButton: FloatingActionButton(
+        heroTag: null,
+        onPressed: () => editReminder(context, null),
+        child: const Icon(Icons.add_rounded),
+      ),
       body: Watch(
         streams: () => [db.watchReminders(), db.watchHabits(), db.watchTrackers(), db.watchPrograms()],
         builder: (context, v) {
@@ -22,48 +27,94 @@ class RemindersScreen extends StatelessWidget {
           final habits = (v[1] as List<Habit>).where((h) => h.reminderMinutes != null).toList();
           final trackers = (v[2] as List<Tracker>).where((t) => t.reminderMinutes != null && t.daysMask != 0).toList();
           final programs = (v[3] as List<Program>).where((p) => p.reminderMinutes != null && p.daysMask != 0).toList();
+          final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+          Widget linked(String emoji, Color color, String name, int minutes, int mask) => ListTile(
+            leading: EmojiAvatar(emoji, size: 40, color: color),
+            title: Text(name),
+            subtitle: Text(maskLabel(mask)),
+            trailing: Text(
+              formatMinutes(minutes),
+              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, fontFeatures: [FontFeature.tabularFigures()]),
+            ),
+          );
           return ListView(
-            padding: const EdgeInsets.only(bottom: 88),
+            padding: const EdgeInsets.only(bottom: 96),
             children: [
               const SectionTitle('Свои напоминания'),
-              if (reminders.isEmpty) const EmptyHint('Например, «Итог дня» в 22:30 или «Обзор недели» в воскресенье.'),
-              for (final r in reminders)
-                SwitchListTile(
-                  title: Text(r.title),
-                  subtitle: Text('${formatMinutes(r.minutes)} · ${maskLabel(r.daysMask)}${r.body == null ? '' : '\n${r.body}'}'),
-                  isThreeLine: r.body != null,
-                  value: r.enabled,
-                  onChanged: (on) => db.saveReminder(RemindersCompanion(id: Value(r.id), enabled: Value(on))),
-                  secondary: IconButton(icon: const Icon(Icons.edit_outlined), onPressed: () => editReminder(context, r)),
+              if (reminders.isEmpty)
+                const Card(
+                  child: EmptyHint(
+                    'Например, «Итог дня» в 22:30 или «Обзор недели» в воскресенье.',
+                    icon: Icons.notifications_none_rounded,
+                  ),
                 ),
+              for (final r in reminders) _ReminderCard(reminder: r),
               if (habits.isNotEmpty || trackers.isNotEmpty || programs.isNotEmpty) ...[
                 const SectionTitle('Из привычек, трекеров и тренировок'),
-                const Padding(
-                  padding: EdgeInsets.symmetric(horizontal: 16),
-                  child: Text('Меняются в настройках самой привычки, трекера или программы.'),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                  child: Text('Меняются в настройках самой привычки, трекера или программы.', style: TextStyle(color: muted)),
                 ),
-                for (final h in habits)
-                  ListTile(
-                    dense: true,
-                    title: Text('${h.icon} ${h.name}'),
-                    trailing: Text('${formatMinutes(h.reminderMinutes!)} · ${maskLabel(h.daysMask)}'),
-                  ),
-                for (final t in trackers)
-                  ListTile(
-                    dense: true,
-                    title: Text('${t.icon} ${t.name}'),
-                    trailing: Text('${formatMinutes(t.reminderMinutes!)} · ${maskLabel(t.daysMask)}'),
-                  ),
-                for (final p in programs)
-                  ListTile(
-                    dense: true,
-                    title: Text('🏋️ ${p.name}'),
-                    trailing: Text('${formatMinutes(p.reminderMinutes!)} · ${maskLabel(p.daysMask)}'),
-                  ),
+                GroupCard(
+                  children: [
+                    for (final h in habits) linked(h.icon, Accent.habits, h.name, h.reminderMinutes!, h.daysMask),
+                    for (final t in trackers) linked(t.icon, Accent.trackers, t.name, t.reminderMinutes!, t.daysMask),
+                    for (final p in programs) linked('🏋️', Accent.workouts, p.name, p.reminderMinutes!, p.daysMask),
+                  ],
+                ),
               ],
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+class _ReminderCard extends StatelessWidget {
+  const _ReminderCard({required this.reminder});
+  final Reminder reminder;
+
+  @override
+  Widget build(BuildContext context) {
+    final r = reminder;
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
+    return Card(
+      child: InkWell(
+        onTap: () => editReminder(context, r),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(20, 14, 12, 14),
+          child: Row(
+            children: [
+              Expanded(
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: r.enabled ? 1 : 0.45,
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        formatMinutes(r.minutes),
+                        style: theme.textTheme.headlineMedium?.copyWith(fontFeatures: const [FontFeature.tabularFigures()]),
+                      ),
+                      const SizedBox(height: 2),
+                      Text(r.title, style: theme.textTheme.titleSmall),
+                      Text(
+                        [maskLabel(r.daysMask), if (r.body != null) r.body!].join(' · '),
+                        style: theme.textTheme.bodySmall?.copyWith(color: muted),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              Switch(
+                value: r.enabled,
+                onChanged: (on) => context.db.saveReminder(RemindersCompanion(id: Value(r.id), enabled: Value(on))),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

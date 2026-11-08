@@ -7,6 +7,7 @@ import '../data/queries.dart';
 import '../logic/calc.dart';
 import 'charts.dart';
 import 'common.dart';
+import 'theme.dart';
 
 class HabitsScreen extends StatelessWidget {
   const HabitsScreen({super.key, this.archived = false});
@@ -17,24 +18,19 @@ class HabitsScreen extends StatelessWidget {
     final db = context.db;
     final today = todayKey();
     final monday = weekStart(today);
+    final archiveButton = IconButton(
+      tooltip: 'Архив',
+      icon: const Icon(Icons.inventory_2_outlined),
+      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitsScreen(archived: true))),
+    );
     return Scaffold(
-      appBar: AppBar(
-        title: Text(archived ? 'Привычки в архиве' : 'Привычки'),
-        actions: [
-          if (!archived)
-            IconButton(
-              tooltip: 'Архив',
-              icon: const Icon(Icons.inventory_2_outlined),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitsScreen(archived: true))),
-            ),
-        ],
-      ),
+      appBar: archived ? AppBar(title: const Text('Привычки в архиве')) : null,
       floatingActionButton: archived
           ? null
           : FloatingActionButton(
               heroTag: null,
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitEditScreen())),
-              child: const Icon(Icons.add),
+              child: const Icon(Icons.add_rounded),
             ),
       body: Watch(
         deps: [today],
@@ -42,20 +38,34 @@ class HabitsScreen extends StatelessWidget {
         builder: (context, v) {
           final habits = v[0] as List<Habit>;
           final logs = v[1] as List<HabitLog>;
-          if (habits.isEmpty) {
-            return EmptyHint(
-              archived
-                  ? 'В архиве пусто.'
-                  : 'Привычка это регулярное действие с расписанием. Например, «Отбой до 23:00» каждый день или «Код» по будням.',
-            );
-          }
           final done = <int, Set<int>>{};
           for (final l in logs) {
             done.putIfAbsent(l.habitId, () => {}).add(l.day);
           }
+          var planned = 0, doneWeek = 0;
+          for (final h in habits) {
+            final c = habitCompletion(daysMask: h.daysMask, doneDays: done[h.id] ?? const {}, from: monday, to: today);
+            planned += c.planned;
+            doneWeek += c.done;
+          }
           return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 88),
-            children: [for (final h in habits) _HabitCard(habit: h, done: done[h.id] ?? const {}, today: today, monday: monday)],
+            padding: EdgeInsets.only(top: archived ? 8 : 0, bottom: 100),
+            children: [
+              if (!archived)
+                PageHeader(
+                  overline: planned == 0 ? 'эта неделя' : 'эта неделя · $doneWeek из $planned',
+                  title: 'Привычки',
+                  actions: [archiveButton],
+                ),
+              if (habits.isEmpty)
+                EmptyHint(
+                  archived
+                      ? 'В архиве пусто.'
+                      : 'Привычка это регулярное действие с расписанием. Например, «Отбой до 23:00» каждый день или «Код» по будням.',
+                  icon: archived ? Icons.inventory_2_outlined : Icons.check_circle_outline_rounded,
+                ),
+              for (final h in habits) _HabitCard(habit: h, done: done[h.id] ?? const {}, today: today, monday: monday),
+            ],
           );
         },
       ),
@@ -73,77 +83,90 @@ class _HabitCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
     final streak = currentStreak(daysMask: habit.daysMask, doneDays: done, today: today);
     final month = habitCompletion(daysMask: habit.daysMask, doneDays: done, from: addDays(today, -29), to: today);
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HabitDetailScreen(habitId: habit.id))),
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+          padding: const EdgeInsets.fromLTRB(14, 14, 14, 14),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  EmojiAvatar(habit.icon, size: 36),
-                  const SizedBox(width: 12),
+                  EmojiAvatar(habit.icon, color: Accent.habits),
+                  const SizedBox(width: 14),
                   Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(habit.name, style: Theme.of(context).textTheme.titleMedium),
+                        Text(habit.name, style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 2),
                         Text(
                           [
                             maskLabel(habit.daysMask),
-                            if (streak > 0) '🔥 $streak',
-                            if (month.planned > 0) 'за 30 дней ${(100 * month.done / month.planned).round()}%',
+                            if (month.planned > 0) '${(100 * month.done / month.planned).round()}% за 30 дней',
                           ].join(' · '),
                           style: TextStyle(color: scheme.onSurfaceVariant),
                         ),
                       ],
                     ),
                   ),
+                  if (streak > 0) Pill('🔥 $streak', color: Accent.workouts),
                 ],
               ),
-              const SizedBox(height: 8),
+              const SizedBox(height: 14),
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
                   for (var i = 0; i < 7; i++)
-                    Builder(
-                      builder: (context) {
-                        final day = addDays(monday, i);
-                        final isDone = done.contains(day);
-                        final planned = maskHasDay(habit.daysMask, day);
-                        final future = day > today;
-                        return InkWell(
-                          customBorder: const CircleBorder(),
-                          onTap: future ? null : () => db.setHabitDone(habit.id, day, done: !isDone),
-                          child: Column(
-                            children: [
-                              Text(weekdayShort[i], style: TextStyle(fontSize: 11, color: scheme.onSurfaceVariant)),
-                              const SizedBox(height: 2),
-                              Container(
-                                width: 32,
-                                height: 32,
-                                decoration: BoxDecoration(
-                                  shape: BoxShape.circle,
-                                  color: isDone ? scheme.primary : null,
-                                  border: Border.all(
-                                    color: day == today
-                                        ? scheme.primary
-                                        : (planned ? scheme.outline : scheme.outlineVariant.withValues(alpha: 0.4)),
-                                    width: day == today ? 2 : 1,
+                    Expanded(
+                      child: Builder(
+                        builder: (context) {
+                          final day = addDays(monday, i);
+                          final isDone = done.contains(day);
+                          final planned = maskHasDay(habit.daysMask, day);
+                          final future = day > today;
+                          final isToday = day == today;
+                          final bg = isDone
+                              ? Accent.habits
+                              : planned
+                              ? scheme.surfaceContainerHighest
+                              : scheme.surfaceContainerHighest.withValues(alpha: 0.4);
+                          return GestureDetector(
+                            onTap: future ? null : () => db.setHabitDone(habit.id, day, done: !isDone),
+                            child: Column(
+                              children: [
+                                Text(
+                                  weekdayShort[i],
+                                  style: theme.textTheme.labelSmall?.copyWith(
+                                    color: isToday ? scheme.onSurface : scheme.onSurfaceVariant,
+                                    fontWeight: isToday ? FontWeight.w700 : FontWeight.w500,
                                   ),
                                 ),
-                                child: isDone ? Icon(Icons.check, size: 18, color: scheme.onPrimary) : null,
-                              ),
-                            ],
-                          ),
-                        );
-                      },
+                                const SizedBox(height: 6),
+                                AnimatedContainer(
+                                  duration: const Duration(milliseconds: 200),
+                                  height: 34,
+                                  margin: const EdgeInsets.symmetric(horizontal: 3),
+                                  decoration: BoxDecoration(
+                                    color: future && !isDone ? Colors.transparent : bg,
+                                    borderRadius: BorderRadius.circular(10),
+                                    border: isToday && !isDone
+                                        ? Border.all(color: Accent.habits, width: 2)
+                                        : future
+                                        ? Border.all(color: scheme.outlineVariant)
+                                        : null,
+                                  ),
+                                  child: isDone ? const Icon(Icons.check_rounded, size: 20, color: Colors.white) : null,
+                                ),
+                              ],
+                            ),
+                          );
+                        },
+                      ),
                     ),
                 ],
               ),
@@ -187,33 +210,78 @@ class HabitDetailScreen extends StatelessWidget {
             ],
           ),
           body: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(bottom: 32),
             children: [
-              Text(
-                [maskLabel(h.daysMask), if (h.reminderMinutes != null) 'напоминание в ${formatMinutes(h.reminderMinutes!)}'].join(' · '),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
+                child: Row(
+                  children: [
+                    EmojiAvatar(h.icon, color: Accent.habits, size: 56),
+                    const SizedBox(width: 16),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            [maskLabel(h.daysMask), if (h.reminderMinutes != null) 'в ${formatMinutes(h.reminderMinutes!)}'].join(' · '),
+                            style: Theme.of(context).textTheme.titleMedium,
+                          ),
+                          if (h.minimumText != null)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 2),
+                              child: Text(
+                                'Минимум: ${h.minimumText}',
+                                style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              if (h.minimumText != null) Padding(padding: const EdgeInsets.only(top: 4), child: Text('Минимум: ${h.minimumText}')),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  _Stat(label: 'серия', value: '$streak'),
-                  _Stat(label: 'за 30 дней', value: m30.planned == 0 ? '—' : '${(100 * m30.done / m30.planned).round()}%'),
-                  _Stat(label: 'всего', value: '${logs.length}'),
-                  _Stat(label: 'минимумом', value: '$minimums'),
-                ],
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 18),
+                  child: Row(
+                    children: [
+                      _Stat(label: 'серия', value: '$streak', color: Accent.workouts),
+                      _Stat(
+                        label: 'за 30 дней',
+                        value: m30.planned == 0 ? '—' : '${(100 * m30.done / m30.planned).round()}%',
+                        color: Accent.habits,
+                      ),
+                      _Stat(label: 'всего', value: '${logs.length}'),
+                      _Stat(label: 'минимумом', value: '$minimums'),
+                    ],
+                  ),
+                ),
               ),
-              const SizedBox(height: 20),
-              Text('Последние 16 недель', style: Theme.of(context).textTheme.titleSmall),
-              const SizedBox(height: 4),
-              const Text('Нажми на день, чтобы поставить или снять отметку. Бледные квадраты: засчитан минимум.'),
-              const SizedBox(height: 8),
-              DayGrid(
-                today: today,
-                weeks: 16,
-                isDone: done.contains,
-                isPlanned: (d) => maskHasDay(h.daysMask, d),
-                isMinimum: (d) => byDay[d]?.minimum ?? false,
-                onTap: (d) => db.setHabitDone(h.id, d, done: !done.contains(d)),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('Последние 16 недель', style: Theme.of(context).textTheme.titleMedium),
+                      const SizedBox(height: 4),
+                      Text(
+                        'Нажми на день, чтобы поставить или снять отметку. Бледные: засчитан минимум.',
+                        style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                      ),
+                      const SizedBox(height: 14),
+                      DayGrid(
+                        today: today,
+                        weeks: 16,
+                        color: Accent.habits,
+                        isDone: done.contains,
+                        isPlanned: (d) => maskHasDay(h.daysMask, d),
+                        isMinimum: (d) => byDay[d]?.minimum ?? false,
+                        onTap: (d) => db.setHabitDone(h.id, d, done: !done.contains(d)),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ],
           ),
@@ -224,17 +292,19 @@ class HabitDetailScreen extends StatelessWidget {
 }
 
 class _Stat extends StatelessWidget {
-  const _Stat({required this.label, required this.value});
+  const _Stat({required this.label, required this.value, this.color});
   final String label;
   final String value;
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
     return Expanded(
       child: Column(
         children: [
-          Text(value, style: Theme.of(context).textTheme.headlineSmall),
-          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+          Text(value, style: Theme.of(context).textTheme.headlineSmall?.copyWith(color: color)),
+          const SizedBox(height: 2),
+          Text(label, style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
         ],
       ),
     );

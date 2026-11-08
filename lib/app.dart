@@ -8,8 +8,12 @@ import 'ui/habits_screen.dart';
 import 'ui/money_screen.dart';
 import 'ui/more_screen.dart';
 import 'ui/setup_screen.dart';
+import 'ui/theme.dart';
 import 'ui/today_screen.dart';
 import 'ui/workouts_screen.dart';
+
+final _light = buildTheme(Brightness.light);
+final _dark = buildTheme(Brightness.dark);
 
 class PlanerApp extends StatelessWidget {
   const PlanerApp({super.key, required this.db, required this.notifications});
@@ -19,29 +23,29 @@ class PlanerApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const seed = Color(0xFF2E7D6B);
     return AppScope(
       db: db,
       notifications: notifications,
-      child: MaterialApp(
-        title: 'Planer',
-        debugShowCheckedModeBanner: false,
-        locale: const Locale('ru'),
-        supportedLocales: const [Locale('ru')],
-        localizationsDelegates: GlobalMaterialLocalizations.delegates,
-        theme: _theme(ColorScheme.fromSeed(seedColor: seed)),
-        darkTheme: _theme(ColorScheme.fromSeed(seedColor: seed, brightness: Brightness.dark)),
-        home: const _Root(),
+      child: StreamBuilder<String?>(
+        stream: db.watchSetting('theme'),
+        builder: (context, snap) => MaterialApp(
+          title: 'Planer',
+          debugShowCheckedModeBanner: false,
+          locale: const Locale('ru'),
+          supportedLocales: const [Locale('ru')],
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          theme: _light,
+          darkTheme: _dark,
+          themeMode: switch (snap.data) {
+            'light' => ThemeMode.light,
+            'dark' => ThemeMode.dark,
+            _ => ThemeMode.system,
+          },
+          home: const _Root(),
+        ),
       ),
     );
   }
-
-  ThemeData _theme(ColorScheme scheme) => ThemeData(
-    colorScheme: scheme,
-    useMaterial3: true,
-    inputDecorationTheme: const InputDecorationTheme(border: OutlineInputBorder()),
-    cardTheme: const CardThemeData(margin: EdgeInsets.symmetric(horizontal: 12, vertical: 4)),
-  );
 }
 
 /// Показывает первый запуск или главный экран.
@@ -83,15 +87,23 @@ class _HomeShellState extends State<HomeShell> {
         selectedIndex: _index,
         onDestinationSelected: (i) => setState(() => _index = i),
         destinations: const [
-          NavigationDestination(icon: Icon(Icons.today_outlined), selectedIcon: Icon(Icons.today), label: 'Сегодня'),
-          NavigationDestination(icon: Icon(Icons.check_circle_outline), selectedIcon: Icon(Icons.check_circle), label: 'Привычки'),
+          NavigationDestination(icon: Icon(Icons.wb_sunny_outlined), selectedIcon: Icon(Icons.wb_sunny_rounded), label: 'Сегодня'),
+          NavigationDestination(
+            icon: Icon(Icons.check_circle_outline_rounded),
+            selectedIcon: Icon(Icons.check_circle_rounded),
+            label: 'Привычки',
+          ),
           NavigationDestination(
             icon: Icon(Icons.account_balance_wallet_outlined),
-            selectedIcon: Icon(Icons.account_balance_wallet),
+            selectedIcon: Icon(Icons.account_balance_wallet_rounded),
             label: 'Деньги',
           ),
-          NavigationDestination(icon: Icon(Icons.fitness_center_outlined), selectedIcon: Icon(Icons.fitness_center), label: 'Спорт'),
-          NavigationDestination(icon: Icon(Icons.more_horiz), label: 'Ещё'),
+          NavigationDestination(
+            icon: Icon(Icons.fitness_center_outlined),
+            selectedIcon: Icon(Icons.fitness_center_rounded),
+            label: 'Спорт',
+          ),
+          NavigationDestination(icon: Icon(Icons.grid_view_outlined), selectedIcon: Icon(Icons.grid_view_rounded), label: 'Ещё'),
         ],
       ),
     );

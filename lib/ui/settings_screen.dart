@@ -10,6 +10,7 @@ import 'package:share_plus/share_plus.dart';
 import '../data/templates.dart';
 import '../data/transfer.dart';
 import 'common.dart';
+import 'theme.dart';
 
 const _backupName = 'before-import.json';
 
@@ -165,85 +166,130 @@ class _SettingsScreenState extends State<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final n = context.notifications;
+    final db = context.db;
+    final muted = TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.4);
     return Scaffold(
       appBar: AppBar(title: const Text('Настройки и данные')),
       body: AbsorbPointer(
         absorbing: _busy,
         child: ListView(
+          padding: const EdgeInsets.only(bottom: 32),
           children: [
             if (_busy) const LinearProgressIndicator(),
+            const SectionTitle('Оформление'),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: StreamBuilder<String?>(
+                stream: db.watchSetting('theme'),
+                builder: (context, snap) => SegmentedButton<String>(
+                  showSelectedIcon: false,
+                  segments: const [
+                    ButtonSegment(value: 'system', label: Text('Как в системе'), icon: Icon(Icons.brightness_auto_outlined)),
+                    ButtonSegment(value: 'light', label: Text('Светлая'), icon: Icon(Icons.light_mode_outlined)),
+                    ButtonSegment(value: 'dark', label: Text('Тёмная'), icon: Icon(Icons.dark_mode_outlined)),
+                  ],
+                  selected: {snap.data ?? 'system'},
+                  onSelectionChanged: (v) => db.setSetting('theme', v.first == 'system' ? null : v.first),
+                ),
+              ),
+            ),
             const SectionTitle('Данные'),
-            const Padding(
-              padding: EdgeInsets.symmetric(horizontal: 16),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
               child: Text(
                 'Все данные хранятся только на этом телефоне. Файл с ними можно сохранить, отправить себе или Claude, '
                 'а потом загрузить на другом телефоне.',
+                style: muted,
               ),
             ),
-            ListTile(
-              leading: const Icon(Icons.save_alt),
-              title: const Text('Сохранить в файл'),
-              subtitle: const Text('Выбрать папку на телефоне'),
-              onTap: _saveToFile,
+            GroupCard(
+              children: [
+                ListTile(
+                  leading: const IconBadge(Icons.save_alt_rounded, color: Accent.trackers),
+                  title: const Text('Сохранить в файл'),
+                  subtitle: const Text('Выбрать папку на телефоне'),
+                  onTap: _saveToFile,
+                ),
+                ListTile(
+                  leading: const IconBadge(Icons.ios_share_rounded, color: Accent.goals),
+                  title: const Text('Отправить файл'),
+                  subtitle: const Text('В Telegram, на почту, в облако'),
+                  onTap: _share,
+                ),
+                ListTile(
+                  leading: const IconBadge(Icons.upload_file_rounded, color: Accent.workouts),
+                  title: const Text('Загрузить из файла'),
+                  subtitle: const Text('Заменит все текущие данные'),
+                  onTap: _import,
+                ),
+                if (_hasBackup)
+                  ListTile(
+                    leading: const IconBadge(Icons.restore_rounded, color: Accent.settings),
+                    title: const Text('Вернуть данные до импорта'),
+                    onTap: _restore,
+                  ),
+              ],
             ),
-            ListTile(
-              leading: const Icon(Icons.share),
-              title: const Text('Отправить файл'),
-              subtitle: const Text('В Telegram, на почту, в облако'),
-              onTap: _share,
-            ),
-            ListTile(
-              leading: const Icon(Icons.upload_file),
-              title: const Text('Загрузить из файла'),
-              subtitle: const Text('Заменит все текущие данные'),
-              onTap: _import,
-            ),
-            if (_hasBackup) ListTile(leading: const Icon(Icons.restore), title: const Text('Вернуть данные до импорта'), onTap: _restore),
             const SectionTitle('Напоминания'),
-            ListTile(
-              leading: Icon(_notifOn == true ? Icons.notifications_active : Icons.notifications_off_outlined),
-              title: Text(_notifOn == true ? 'Уведомления разрешены' : 'Уведомления выключены'),
-              subtitle: _notifOn == true ? null : const Text('Нажми, чтобы разрешить'),
-              onTap: () async {
-                await n.requestPermission();
-                await _refresh();
-              },
-            ),
-            ListTile(
-              leading: Icon(_exact == true ? Icons.alarm_on : Icons.alarm),
-              title: Text(_exact == true ? 'Точное время включено' : 'Точное время выключено'),
-              subtitle: Text(
-                _exact == true
-                    ? 'Напоминания приходят минута в минуту'
-                    : 'Без него Android может сдвигать напоминания на несколько минут. Нажми, чтобы включить',
-              ),
-              onTap: () async {
-                await n.requestExact();
-                await _refresh();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.notification_add_outlined),
-              title: const Text('Проверить уведомление'),
-              onTap: () async {
-                await n.showTest();
-                final count = await n.reschedule();
-                if (context.mounted) showSnack(context, 'Запланировано напоминаний на неделю: $count');
-              },
+            GroupCard(
+              children: [
+                ListTile(
+                  leading: IconBadge(
+                    _notifOn == true ? Icons.notifications_active_rounded : Icons.notifications_off_rounded,
+                    color: _notifOn == true ? Accent.habits : Accent.settings,
+                  ),
+                  title: Text(_notifOn == true ? 'Уведомления разрешены' : 'Уведомления выключены'),
+                  subtitle: _notifOn == true ? null : const Text('Нажми, чтобы разрешить'),
+                  onTap: () async {
+                    await n.requestPermission();
+                    await _refresh();
+                  },
+                ),
+                ListTile(
+                  leading: IconBadge(Icons.alarm_rounded, color: _exact == true ? Accent.habits : Accent.settings),
+                  title: Text(_exact == true ? 'Точное время включено' : 'Точное время выключено'),
+                  subtitle: Text(
+                    _exact == true
+                        ? 'Напоминания приходят минута в минуту'
+                        : 'Без него Android может сдвигать напоминания на несколько минут. Нажми, чтобы включить',
+                  ),
+                  onTap: () async {
+                    await n.requestExact();
+                    await _refresh();
+                  },
+                ),
+                ListTile(
+                  leading: const IconBadge(Icons.notification_add_rounded, color: Accent.reminders),
+                  title: const Text('Проверить уведомление'),
+                  onTap: () async {
+                    await n.showTest();
+                    final count = await n.reschedule();
+                    if (context.mounted) showSnack(context, 'Запланировано напоминаний на неделю: $count');
+                  },
+                ),
+              ],
             ),
             const SectionTitle('Шаблоны'),
-            for (final t in templates)
-              ListTile(
-                leading: const Icon(Icons.library_add_outlined),
-                title: Text('Добавить «${t.title}»'),
-                subtitle: Text(t.description),
-                onTap: () => _addTemplate(t),
-              ),
+            GroupCard(
+              children: [
+                for (final t in templates)
+                  ListTile(
+                    leading: const IconBadge(Icons.library_add_rounded, color: Accent.report),
+                    title: Text('Добавить «${t.title}»'),
+                    subtitle: Text(t.description),
+                    onTap: () => _addTemplate(t),
+                  ),
+              ],
+            ),
             const SectionTitle('О приложении'),
-            const ListTile(
-              leading: Icon(Icons.info_outline),
-              title: Text('Planer'),
-              subtitle: Text('Личный органайзер. Работает без интернета, ничего никуда не отправляет.'),
+            const GroupCard(
+              children: [
+                ListTile(
+                  leading: IconBadge(Icons.check_rounded, color: Color(0xFF6366F1)),
+                  title: Text('Planer'),
+                  subtitle: Text('Личный органайзер. Работает без интернета, ничего никуда не отправляет.'),
+                ),
+              ],
             ),
           ],
         ),

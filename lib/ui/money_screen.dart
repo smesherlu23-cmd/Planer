@@ -7,6 +7,10 @@ import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/values.dart';
 import 'common.dart';
+import 'theme.dart';
+
+/// Долг выплачивается: прогресс зелёный. Копилка копится: прогресс цвета раздела.
+const _debtColor = Color(0xFFEF4444);
 
 class MoneyScreen extends StatefulWidget {
   const MoneyScreen({super.key});
@@ -26,21 +30,13 @@ class _MoneyScreenState extends State<MoneyScreen> {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
+    final theme = Theme.of(context);
+    final dark = theme.brightness == Brightness.dark;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Деньги'),
-        actions: [
-          IconButton(
-            tooltip: 'Категории',
-            icon: const Icon(Icons.category_outlined),
-            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen())),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
         onPressed: () => showTransactionSheet(context),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
         label: const Text('Операция'),
       ),
       body: Watch(
@@ -67,68 +63,112 @@ class _MoneyScreenState extends State<MoneyScreen> {
             byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
           }
           final catRows = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-          final limited = cats.where((c) => c.monthlyLimit != null && !c.isIncome && !byCat.containsKey(c.id));
+          final limited = cats.where((c) => c.monthlyLimit != null && !c.isIncome && !byCat.containsKey(c.id)).toList();
+          final byDay = <int, List<Transaction>>{};
+          for (final t in txs) {
+            byDay.putIfAbsent(t.day, () => []).add(t);
+          }
+          final diff = income - expenses;
 
           return ListView(
-            padding: const EdgeInsets.only(bottom: 96),
+            padding: const EdgeInsets.only(bottom: 110),
             children: [
-              const SectionTitle('Копилки и долги'),
-              if (funds.isEmpty)
-                const EmptyHint('Копилка показывает, сколько накоплено и когда дойдёшь до цели. Долг показывает остаток и срок закрытия.'),
-              for (final f in funds) _FundCard(fund: f, value: values[f.id] ?? fundValue(f, 0), recent: recentMonthlyPace(moves, f.id)),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 12),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: TextButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: const Text('Копилка или долг'),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
+              PageHeader(
+                overline: 'бюджет и накопления',
+                title: 'Деньги',
+                actions: [
+                  IconButton(
+                    tooltip: 'Категории',
+                    icon: const Icon(Icons.category_rounded),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen())),
                   ),
-                ),
-              ),
-              const Divider(),
-              Row(
-                children: [
-                  IconButton(onPressed: () => _shift(-1), icon: const Icon(Icons.chevron_left)),
-                  Expanded(
-                    child: Text(
-                      monthTitle(_month.year, _month.month),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.titleMedium,
-                    ),
-                  ),
-                  IconButton(onPressed: () => _shift(1), icon: const Icon(Icons.chevron_right)),
                 ],
               ),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Row(
-                    children: [
-                      _Sum(label: 'Расходы', value: expenses),
-                      _Sum(label: 'Доходы', value: income),
-                      _Sum(label: 'Разница', value: income - expenses),
-                    ],
-                  ),
+              HeroCard(
+                colors: dark ? const [Color(0xFFB45309), Color(0xFFC2410C)] : const [Color(0xFFD97706), Color(0xFFEA580C)],
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        HeroArrow(Icons.chevron_left_rounded, onTap: () => _shift(-1)),
+                        Expanded(
+                          child: Text(
+                            monthTitle(_month.year, _month.month),
+                            textAlign: TextAlign.center,
+                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                          ),
+                        ),
+                        HeroArrow(Icons.chevron_right_rounded, onTap: () => _shift(1)),
+                      ],
+                    ),
+                    const SizedBox(height: 10),
+                    const Text(
+                      'Потрачено',
+                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                    ),
+                    FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerLeft,
+                      child: Text(formatMoney(expenses), style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
+                    ),
+                    const SizedBox(height: 14),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: HeroStat(label: 'Доходы', value: '+${formatMoney(income)}'),
+                        ),
+                        const SizedBox(width: 10),
+                        Expanded(
+                          child: HeroStat(label: 'Разница', value: '${diff < 0 ? '−' : '+'}${formatMoney(diff.abs())}'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
               ),
-              if (catRows.isNotEmpty || limited.isNotEmpty) const SectionTitle('Расходы по категориям'),
-              for (final e in catRows) _CategoryRow(category: allCats[e.key], spent: e.value, total: expenses),
-              for (final c in limited) _CategoryRow(category: c, spent: 0, total: expenses),
-              const SectionTitle('Операции'),
-              if (txs.isEmpty) const EmptyHint('За этот месяц операций нет'),
-              for (final t in txs)
-                ListTile(
-                  leading: Text(allCats[t.categoryId]?.icon ?? (t.isIncome ? '💵' : '💸'), style: const TextStyle(fontSize: 22)),
-                  title: Text(allCats[t.categoryId]?.name ?? (t.isIncome ? 'Доход' : 'Без категории')),
-                  subtitle: Text([dayLabel(t.day), if (t.note != null) t.note!].join(' · ')),
-                  trailing: Text(
-                    '${t.isIncome ? '+' : '−'}${formatMoney(t.amount)}',
-                    style: TextStyle(color: t.isIncome ? Colors.green : null, fontWeight: FontWeight.w600),
-                  ),
-                  onTap: () => showTransactionSheet(context, existing: t),
+              SectionTitle(
+                'Копилки и долги',
+                trailing: IconButton(
+                  tooltip: 'Копилка или долг',
+                  icon: const Icon(Icons.add_rounded),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
                 ),
+              ),
+              if (funds.isEmpty)
+                Card(
+                  child: EmptyHint(
+                    'Копилка показывает, сколько накоплено и когда дойдёшь до цели. Долг показывает остаток и срок закрытия.',
+                    icon: Icons.savings_outlined,
+                    action: FilledButton.tonal(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
+                      child: const Text('Добавить'),
+                    ),
+                  ),
+                ),
+              for (final f in funds) _FundCard(fund: f, value: values[f.id] ?? fundValue(f, 0), recent: recentMonthlyPace(moves, f.id)),
+              if (catRows.isNotEmpty || limited.isNotEmpty) ...[
+                const SectionTitle('По категориям'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 6),
+                    child: Column(
+                      children: [
+                        for (final e in catRows) _CategoryRow(category: allCats[e.key], spent: e.value, total: expenses),
+                        for (final c in limited) _CategoryRow(category: c, spent: 0, total: expenses),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+              const SectionTitle('Операции'),
+              if (txs.isEmpty) const Card(child: EmptyHint('За этот месяц операций нет', icon: Icons.receipt_long_outlined)),
+              for (final MapEntry(key: day, value: list) in byDay.entries) ...[
+                _DayHeader(day: day, txs: list),
+                GroupCard(
+                  children: [for (final t in list) _TransactionTile(t: t, category: allCats[t.categoryId])],
+                ),
+              ],
             ],
           );
         },
@@ -137,21 +177,45 @@ class _MoneyScreenState extends State<MoneyScreen> {
   }
 }
 
-class _Sum extends StatelessWidget {
-  const _Sum({required this.label, required this.value});
-  final String label;
-  final double value;
+class _DayHeader extends StatelessWidget {
+  const _DayHeader({required this.day, required this.txs});
+  final int day;
+  final List<Transaction> txs;
 
   @override
   Widget build(BuildContext context) {
-    return Expanded(
-      child: Column(
+    final theme = Theme.of(context);
+    final spent = txs.where((t) => !t.isIncome).fold<double>(0, (a, t) => a + t.amount);
+    final label = dayLabel(day);
+    final muted = theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
+      child: Row(
         children: [
-          Text(label, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
-          const SizedBox(height: 4),
-          FittedBox(child: Text(formatMoney(value), style: Theme.of(context).textTheme.titleMedium)),
+          Expanded(child: Text(label[0].toUpperCase() + label.substring(1), style: muted)),
+          if (spent > 0) Text('−${formatMoney(spent)}', style: muted),
         ],
       ),
+    );
+  }
+}
+
+class _TransactionTile extends StatelessWidget {
+  const _TransactionTile({required this.t, required this.category});
+  final Transaction t;
+  final Category? category;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListTile(
+      leading: EmojiAvatar(category?.icon ?? (t.isIncome ? '💵' : '💸'), size: 40, color: t.isIncome ? Accent.habits : Accent.money),
+      title: Text(category?.name ?? (t.isIncome ? 'Доход' : 'Без категории')),
+      subtitle: t.note == null ? null : Text(t.note!, maxLines: 1, overflow: TextOverflow.ellipsis),
+      trailing: Text(
+        '${t.isIncome ? '+' : '−'}${formatMoney(t.amount)}',
+        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: t.isIncome ? Accent.habits : null, fontWeight: FontWeight.w700),
+      ),
+      onTap: () => showTransactionSheet(context, existing: t),
     );
   }
 }
@@ -164,32 +228,57 @@ class _CategoryRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final limit = category?.monthlyLimit;
     final over = limit != null && spent > limit;
+    final color = over ? theme.colorScheme.error : Accent.money;
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
         children: [
-          Row(
-            children: [
-              Text('${category?.icon ?? '💸'} ${category?.name ?? 'Без категории'}'),
-              const Spacer(),
-              Text(
-                limit == null ? formatMoney(spent) : '${formatMoney(spent)} из ${formatMoney(limit)}',
-                style: TextStyle(color: over ? Theme.of(context).colorScheme.error : null),
-              ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          ProgressLine(
-            value: limit != null ? (limit == 0 ? 1 : spent / limit) : (total == 0 ? 0 : spent / total),
-            color: over ? Theme.of(context).colorScheme.error : null,
+          EmojiAvatar(category?.icon ?? '💸', size: 38, color: Accent.money),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        category?.name ?? 'Без категории',
+                        style: const TextStyle(fontWeight: FontWeight.w500),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Text(
+                      formatMoney(spent),
+                      style: TextStyle(fontWeight: FontWeight.w700, color: over ? theme.colorScheme.error : null),
+                    ),
+                    if (limit != null)
+                      Text(' / ${formatMoney(limit)}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant, fontSize: 13)),
+                  ],
+                ),
+                const SizedBox(height: 6),
+                ProgressLine(
+                  value: limit != null ? (limit == 0 ? 1 : spent / limit) : (total == 0 ? 0 : spent / total),
+                  color: color,
+                  height: 6,
+                ),
+              ],
+            ),
           ),
         ],
       ),
     );
   }
+}
+
+/// Прогресс копилки или долга: доля накопленного или выплаченного. null, если цели нет.
+double? _fundProgress(Fund f, double value) {
+  if (f.kind == FundKind.debt) return f.initialAmount <= 0 ? 1 : 1 - value / f.initialAmount;
+  if (f.target != null) return f.target! <= 0 ? 1 : value / f.target!;
+  return null;
 }
 
 class _FundCard extends StatelessWidget {
@@ -200,43 +289,71 @@ class _FundCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     final f = fund;
     final isDebt = f.kind == FundKind.debt;
     final forecast = fundForecast(f, value, recentMonthly: recent);
-    double? progress;
-    String line;
+    final progress = _fundProgress(f, value);
+    final String line;
     if (isDebt) {
-      progress = f.initialAmount <= 0 ? 1 : 1 - value / f.initialAmount;
-      line = 'Осталось ${formatMoney(value)} из ${formatMoney(f.initialAmount)}';
+      line = 'осталось ${formatMoney(value)} из ${formatMoney(f.initialAmount)}';
     } else if (f.target != null) {
-      progress = f.target! <= 0 ? 1 : value / f.target!;
       line = '${formatMoney(value)} из ${formatMoney(f.target!)}';
     } else {
       line = formatMoney(value);
     }
+    final color = isDebt ? Accent.habits : Accent.money;
+    final muted = theme.colorScheme.onSurfaceVariant;
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FundDetailScreen(fundId: f.id))),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Text(f.icon, style: const TextStyle(fontSize: 22)),
-                  const SizedBox(width: 8),
-                  Expanded(child: Text(f.name, style: Theme.of(context).textTheme.titleMedium)),
-                  Text(isDebt ? 'долг' : 'копилка', style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                  EmojiAvatar(f.icon, color: isDebt ? _debtColor : Accent.money),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Flexible(
+                              child: Text(f.name, style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
+                            ),
+                            const SizedBox(width: 8),
+                            Pill(isDebt ? 'долг' : 'копилка', color: isDebt ? _debtColor : Accent.money),
+                          ],
+                        ),
+                        const SizedBox(height: 2),
+                        Text(line, style: theme.textTheme.bodyMedium?.copyWith(color: muted)),
+                      ],
+                    ),
+                  ),
+                  if (progress != null)
+                    Text('${(progress.clamp(0, 1) * 100).round()}%', style: theme.textTheme.titleLarge?.copyWith(color: color)),
                 ],
               ),
-              const SizedBox(height: 6),
-              Text(line),
-              if (progress != null) ...[const SizedBox(height: 6), ProgressLine(value: progress)],
+              if (progress != null) ...[const SizedBox(height: 14), ProgressLine(value: progress, color: color)],
               if (forecast.text.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(forecast.text, style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 1),
+                      child: Icon(Icons.schedule_rounded, size: 16, color: muted),
+                    ),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(forecast.text, style: theme.textTheme.bodySmall?.copyWith(color: muted, height: 1.35)),
+                    ),
+                  ],
+                ),
               ],
             ],
           ),
@@ -362,68 +479,143 @@ class FundDetailScreen extends StatelessWidget {
       builder: (context, v) {
         final f = v[0] as Fund?;
         if (f == null) return const Scaffold(body: Center(child: Text('Удалено')));
+        final theme = Theme.of(context);
+        final muted = theme.colorScheme.onSurfaceVariant;
         final moves = v[1] as List<FundMove>;
         final value = fundValue(f, moves.fold<double>(0, (a, m) => a + m.amount));
         final isDebt = f.kind == FundKind.debt;
         final forecast = fundForecast(f, value, recentMonthly: recentMonthlyPace(moves, f.id));
+        final progress = _fundProgress(f, value);
+        final color = isDebt ? Accent.habits : Accent.money;
+        final facts = [
+          if (isDebt) 'было ${formatMoney(f.initialAmount)}',
+          if (!isDebt && f.target != null) 'цель ${formatMoney(f.target!)}',
+          if (f.monthlyAmount != null) '${isDebt ? 'платёж' : 'взнос'} ${formatMoney(f.monthlyAmount!)} в мес.',
+          if (isDebt && f.interestRate != null) 'ставка ${formatNumber(f.interestRate!)}%',
+        ];
         return Scaffold(
           appBar: AppBar(
-            title: Text('${f.icon} ${f.name}'),
+            title: Text(f.name),
             actions: [
               IconButton(
-                icon: const Icon(Icons.edit_outlined),
+                icon: const Icon(Icons.edit_rounded),
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => FundEditScreen(fund: f))),
               ),
             ],
           ),
           body: ListView(
-            padding: const EdgeInsets.all(16),
+            padding: const EdgeInsets.only(bottom: 32),
             children: [
-              Text(isDebt ? 'Осталось выплатить' : 'Накоплено', style: Theme.of(context).textTheme.titleSmall),
-              Text(formatMoney(value), style: Theme.of(context).textTheme.displaySmall),
-              const SizedBox(height: 8),
-              Text(
-                [
-                  if (isDebt) 'было ${formatMoney(f.initialAmount)}',
-                  if (!isDebt && f.target != null) 'цель ${formatMoney(f.target!)}',
-                  if (f.monthlyAmount != null) '${isDebt ? 'платёж' : 'взнос'} ${formatMoney(f.monthlyAmount!)} в месяц',
-                  if (isDebt && f.interestRate != null) 'ставка ${formatNumber(f.interestRate!)}%',
-                ].join(' · '),
-              ),
-              if (forecast.text.isNotEmpty) Padding(padding: const EdgeInsets.only(top: 8), child: Text(forecast.text)),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  FilledButton.icon(
-                    icon: const Icon(Icons.add),
-                    label: Text(isDebt ? 'Платёж' : 'Внести'),
-                    onPressed: () => _moveSheet(context, f, sign: 1),
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          EmojiAvatar(f.icon, size: 56, color: isDebt ? _debtColor : Accent.money),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(isDebt ? 'Осталось выплатить' : 'Накоплено', style: TextStyle(color: muted)),
+                                FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(formatMoney(value), style: theme.textTheme.headlineMedium),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (progress != null) ...[
+                        const SizedBox(height: 18),
+                        Row(
+                          children: [
+                            Text(
+                              '${(progress.clamp(0, 1) * 100).round()}%',
+                              style: theme.textTheme.titleMedium?.copyWith(color: color, fontWeight: FontWeight.w700),
+                            ),
+                            const SizedBox(width: 6),
+                            Text(isDebt ? 'выплачено' : 'от цели', style: TextStyle(color: muted)),
+                          ],
+                        ),
+                        const SizedBox(height: 8),
+                        ProgressLine(value: progress, color: color, height: 12),
+                      ],
+                      if (facts.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Wrap(spacing: 6, runSpacing: 6, children: [for (final s in facts) Pill(s)]),
+                      ],
+                      if (forecast.text.isNotEmpty) ...[
+                        const SizedBox(height: 14),
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(Icons.schedule_rounded, size: 18, color: muted),
+                            const SizedBox(width: 8),
+                            Expanded(child: Text(forecast.text, style: const TextStyle(height: 1.35))),
+                          ],
+                        ),
+                      ],
+                    ],
                   ),
-                  if (!isDebt)
-                    OutlinedButton.icon(
-                      icon: const Icon(Icons.remove),
-                      label: const Text('Снять'),
-                      onPressed: () => _moveSheet(context, f, sign: -1),
+                ),
+              ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: FilledButton.icon(
+                        icon: const Icon(Icons.add_rounded),
+                        label: Text(isDebt ? 'Платёж' : 'Внести'),
+                        onPressed: () => _moveSheet(context, f, sign: 1),
+                      ),
                     ),
-                ],
+                    if (!isDebt) ...[
+                      const SizedBox(width: 10),
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          style: OutlinedButton.styleFrom(minimumSize: const Size(64, 52)),
+                          icon: const Icon(Icons.remove_rounded),
+                          label: const Text('Снять'),
+                          onPressed: () => _moveSheet(context, f, sign: -1),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
               ),
               const SectionTitle('История'),
-              if (moves.isEmpty) const EmptyHint('Пока ничего'),
-              for (final m in moves)
-                ListTile(
-                  contentPadding: EdgeInsets.zero,
-                  title: Text('${m.amount >= 0 ? '+' : '−'}${formatMoney(m.amount.abs())}'),
-                  subtitle: Text([dayLabel(m.day), if (m.note != null) m.note!].join(' · ')),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () async {
-                      if (await confirm(context, 'Удалить запись?', ok: 'Удалить', danger: true)) {
-                        await db.deleteById(db.fundMoves, m.id);
-                      }
-                    },
-                  ),
+              if (moves.isEmpty) const Card(child: EmptyHint('Пока ничего', icon: Icons.history_rounded)),
+              if (moves.isNotEmpty)
+                GroupCard(
+                  children: [
+                    for (final m in moves)
+                      ListTile(
+                        leading: IconBadge(
+                          m.amount >= 0 ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
+                          color: m.amount >= 0 ? Accent.habits : _debtColor,
+                        ),
+                        title: Text(
+                          '${m.amount >= 0 ? '+' : '−'}${formatMoney(m.amount.abs())}',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        subtitle: Text([dayLabel(m.day), if (m.note != null) m.note!].join(' · ')),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          onPressed: () async {
+                            if (await confirm(context, 'Удалить запись?', ok: 'Удалить', danger: true)) {
+                              await db.deleteById(db.fundMoves, m.id);
+                            }
+                          },
+                        ),
+                      ),
+                  ],
                 ),
             ],
           ),
@@ -604,7 +796,11 @@ class CategoriesScreen extends StatelessWidget {
     final db = context.db;
     return Scaffold(
       appBar: AppBar(title: const Text('Категории')),
-      floatingActionButton: FloatingActionButton(heroTag: null, onPressed: () => _edit(context, null), child: const Icon(Icons.add)),
+      floatingActionButton: FloatingActionButton(
+        heroTag: null,
+        onPressed: () => _edit(context, null),
+        child: const Icon(Icons.add_rounded),
+      ),
       body: StreamBuilder<List<Category>>(
         stream: db.watchCategories(),
         builder: (context, snap) {
@@ -613,9 +809,9 @@ class CategoriesScreen extends StatelessWidget {
             padding: const EdgeInsets.only(bottom: 88),
             children: [
               const SectionTitle('Расходы'),
-              for (final c in cats.where((c) => !c.isIncome)) _tile(context, c),
+              GroupCard(children: [for (final c in cats.where((c) => !c.isIncome)) _tile(context, c)]),
               const SectionTitle('Доходы'),
-              for (final c in cats.where((c) => c.isIncome)) _tile(context, c),
+              GroupCard(children: [for (final c in cats.where((c) => c.isIncome)) _tile(context, c)]),
             ],
           );
         },
@@ -624,8 +820,9 @@ class CategoriesScreen extends StatelessWidget {
   }
 
   Widget _tile(BuildContext context, Category c) => ListTile(
-    leading: Text(c.icon, style: const TextStyle(fontSize: 22)),
+    leading: EmojiAvatar(c.icon, size: 40, color: c.isIncome ? Accent.habits : Accent.money),
     title: Text(c.name),
+    trailing: const Icon(Icons.chevron_right_rounded),
     subtitle: c.monthlyLimit == null ? null : Text('лимит ${formatMoney(c.monthlyLimit!)} в месяц'),
     onTap: () => _edit(context, c),
   );

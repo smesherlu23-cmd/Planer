@@ -17,19 +17,26 @@ import 'package:planer/services/notifications.dart';
 
 const screenshots = bool.fromEnvironment('SCREENSHOTS');
 
+const theme = String.fromEnvironment('THEME', defaultValue: 'light');
+
 Future<void> loadFonts() async {
   final root = '${Platform.environment['FLUTTER_ROOT'] ?? '/opt/sdk/flutter'}/bin/cache/artifacts/material_fonts';
-  Future<void> load(String family, List<String> files) async {
+  Future<void> load(String family, List<String> paths) async {
     final loader = FontLoader(family);
-    for (final f in files) {
-      final file = File('$root/$f');
+    for (final path in paths) {
+      final file = File(path);
       if (file.existsSync()) loader.addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
     }
     await loader.load();
   }
 
-  await load('Roboto', ['Roboto-Regular.ttf', 'Roboto-Medium.ttf', 'Roboto-Bold.ttf']);
-  await load('MaterialIcons', ['MaterialIcons-Regular.otf']);
+  await load('Inter', [
+    for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold']) 'assets/fonts/Inter-$w.ttf',
+  ]);
+  await load('MaterialIcons', ['$root/MaterialIcons-Regular.otf']);
+  // Цветные эмодзи: путь к NotoColorEmoji.ttf, если он есть на машине.
+  final emoji = Platform.environment['EMOJI_FONT'];
+  if (emoji != null) await load('Noto Color Emoji', [emoji]);
 }
 
 void main() {
@@ -42,7 +49,7 @@ void main() {
   Future<void> shot(WidgetTester tester, String name) async {
     debugPrint('screen: $name');
     if (!screenshots) return;
-    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screens/$name.png'));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('screens/$theme/$name.png'));
   }
 
   testWidgets('все экраны открываются', (tester) async {
@@ -55,6 +62,7 @@ void main() {
     await tester.runAsync(() async {
       await applyTemplate(db, 'my_plan', today: addDays(today, -14));
       await db.setSetting('setup_done', '1');
+      if (theme == 'dark') await db.setSetting('theme', 'dark');
       // Немного истории, чтобы графики и серии были не пустыми.
       final trackers = await db.select(db.trackers).get();
       final weight = trackers.firstWhere((t) => t.name == 'Вес');
@@ -75,6 +83,20 @@ void main() {
       final cats = await db.select(db.categories).get();
       await db.saveTransaction(TransactionsCompanionX.expense(350, cats.first.id, today));
       await db.saveTransaction(TransactionsCompanionX.expense(2500, cats[1].id, addDays(today, -1)));
+      await db.saveJournal(
+        JournalEntriesCompanion.insert(
+          kind: JournalKind.day,
+          day: addDays(today, -1),
+          mood: const Value(7),
+          body: const Value('Что сделал сегодня:\n1. Час кода\n2. Тренировка A\n3. Лёг до 23:00'),
+        ),
+      );
+      final programs = await db.select(db.programs).get();
+      await db.saveSession(
+        program: programs.first,
+        day: addDays(today, -2),
+        sets: [SessionSetsCompanion.insert(sessionId: 0, exerciseName: 'Отжимания', setIndex: 0, reps: 15)],
+      );
     });
 
     await tester.pumpWidget(PlanerApp(db: db, notifications: NotificationService(db)));
@@ -147,6 +169,9 @@ void main() {
   });
 
   testWidgets('первый запуск показывает выбор шаблона', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
     final db = AppDatabase(NativeDatabase.memory());
     await tester.pumpWidget(PlanerApp(db: db, notifications: NotificationService(db)));
     await pumpData(tester);

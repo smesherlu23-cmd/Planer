@@ -7,6 +7,7 @@ import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/values.dart';
 import 'common.dart';
+import 'theme.dart';
 
 /// Текущее значение цели и подпись к нему.
 ({double? current, String unit, bool money}) goalCurrent(
@@ -36,7 +37,7 @@ class GoalsScreen extends StatelessWidget {
       floatingActionButton: FloatingActionButton(
         heroTag: null,
         onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalEditScreen())),
-        child: const Icon(Icons.add),
+        child: const Icon(Icons.add_rounded),
       ),
       body: Watch(
         streams: () => [db.watchGoals(), db.watchTrackers(), db.watchAllEntries(), db.watchFundValues()],
@@ -47,12 +48,13 @@ class GoalsScreen extends StatelessWidget {
           final fundValues = v[3] as Map<int, double>;
           if (goals.isEmpty) {
             return const EmptyHint(
+              icon: Icons.flag_rounded,
               'Цель это измеримый результат к сроку: «Вес 73 кг», «Закрыть кредит». Она берёт значение из трекера или копилки и показывает прогноз.',
             );
           }
           final today = todayKey();
           return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 88),
+            padding: const EdgeInsets.only(top: 4, bottom: 96),
             children: [
               for (final g in goals)
                 _GoalCard(
@@ -79,58 +81,90 @@ class _GoalCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final g = goal;
-    final scheme = Theme.of(context).colorScheme;
+    final theme = Theme.of(context);
+    final scheme = theme.colorScheme;
+    final muted = scheme.onSurfaceVariant;
     final current = info.current;
-    final lines = <Widget>[];
     double fraction = 0;
-    if (current == null) {
-      lines.add(const Text('Пока нет данных'));
-    } else {
+    var reached = false;
+    String? forecast;
+    var late = false;
+    if (current != null) {
       final p = goalProgress(start: g.startValue, target: g.targetValue, current: current, startDay: g.startDay, today: today);
       fraction = p.fraction;
-      lines.add(Text('${_fmt(current)} · цель ${_fmt(g.targetValue)}'));
-      if (p.reached) {
-        lines.add(const Text('🎉 Достигнута'));
-      } else if (p.forecastDay != null) {
-        final late = g.deadline != null && p.forecastDay! > g.deadline!;
-        lines.add(
-          Text(
-            'При текущем темпе: ${formatDay(p.forecastDay!, withYear: true)}${late ? ', позже срока' : ''}',
-            style: TextStyle(color: late ? scheme.error : scheme.onSurfaceVariant),
-          ),
-        );
-      } else if (daysBetween(g.startDay, today) < 7) {
-        lines.add(Text('Прогноз появится через неделю данных', style: TextStyle(color: scheme.onSurfaceVariant)));
+      reached = p.reached;
+      if (!reached && p.forecastDay != null) {
+        late = g.deadline != null && p.forecastDay! > g.deadline!;
+        forecast = 'При текущем темпе: ${formatDay(p.forecastDay!, withYear: true)}${late ? ', позже срока' : ''}';
+      } else if (!reached && daysBetween(g.startDay, today) < 7) {
+        forecast = 'Прогноз появится через неделю данных';
       }
     }
-    if (g.deadline != null) {
-      final left = daysBetween(today, g.deadline!);
-      lines.add(
-        Text(
-          'Срок: ${formatDay(g.deadline!, withYear: true)}${left >= 0 ? ' (осталось $left дн.)' : ' (прошёл)'}',
-          style: TextStyle(color: scheme.onSurfaceVariant),
-        ),
-      );
-    }
+    final color = reached ? Accent.habits : Accent.goals;
+    final left = g.deadline == null ? null : daysBetween(today, g.deadline!);
     return Card(
       child: InkWell(
-        borderRadius: BorderRadius.circular(12),
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => GoalEditScreen(goal: g))),
         child: Padding(
-          padding: const EdgeInsets.all(14),
+          padding: const EdgeInsets.all(16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Row(
                 children: [
-                  Expanded(child: Text(g.name, style: Theme.of(context).textTheme.titleMedium)),
-                  Text('${(fraction * 100).round()}%'),
+                  ProgressRing(
+                    value: fraction,
+                    size: 60,
+                    stroke: 7,
+                    color: color,
+                    child: reached
+                        ? Icon(Icons.check_rounded, color: color)
+                        : Text('${(fraction * 100).round()}%', style: theme.textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                  ),
+                  const SizedBox(width: 16),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(g.name, style: theme.textTheme.titleMedium),
+                        const SizedBox(height: 2),
+                        Text(
+                          current == null ? 'Пока нет данных' : 'сейчас ${_fmt(current)} · цель ${_fmt(g.targetValue)}',
+                          style: theme.textTheme.bodyMedium?.copyWith(color: muted),
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
               ),
-              const SizedBox(height: 8),
-              ProgressLine(value: fraction),
-              const SizedBox(height: 8),
-              ...lines,
+              if (reached || left != null) ...[
+                const SizedBox(height: 12),
+                Wrap(
+                  spacing: 6,
+                  runSpacing: 6,
+                  children: [
+                    if (reached) const Pill('🎉 Достигнута', color: Accent.habits),
+                    if (left != null)
+                      Pill(
+                        'до ${formatDay(g.deadline!, withYear: true)} · ${left >= 0 ? 'осталось $left дн.' : 'срок прошёл'}',
+                        color: left < 0 && !reached ? scheme.error : null,
+                      ),
+                  ],
+                ),
+              ],
+              if (forecast != null) ...[
+                const SizedBox(height: 10),
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Icon(Icons.trending_up_rounded, size: 16, color: late ? scheme.error : muted),
+                    const SizedBox(width: 6),
+                    Expanded(
+                      child: Text(forecast, style: theme.textTheme.bodySmall?.copyWith(color: late ? scheme.error : muted, height: 1.35)),
+                    ),
+                  ],
+                ),
+              ],
             ],
           ),
         ),

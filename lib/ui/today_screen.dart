@@ -10,6 +10,7 @@ import 'habits_screen.dart';
 import 'journal_screen.dart';
 import 'money_screen.dart';
 import 'report_screen.dart';
+import 'theme.dart';
 import 'trackers_screen.dart';
 import 'workouts_screen.dart';
 
@@ -46,20 +47,10 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
     final db = context.db;
     final today = _today;
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Сегодня'),
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(20),
-          child: Padding(
-            padding: const EdgeInsets.only(left: 16, bottom: 8),
-            child: Align(alignment: Alignment.centerLeft, child: Text(formatDayLong(today))),
-          ),
-        ),
-      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: null,
         onPressed: () => showTransactionSheet(context),
-        icon: const Icon(Icons.add),
+        icon: const Icon(Icons.add_rounded),
         label: const Text('Расход'),
       ),
       body: Watch(
@@ -139,31 +130,54 @@ class _TodayBody extends StatelessWidget {
     if (dayNote != null) done++;
 
     final nothingPlanned = todayHabits.isEmpty && todayTrackers.isEmpty && todayPrograms.isEmpty;
+    final habitsDone = todayHabits.where((h) => logsToday.containsKey(h.id)).length;
+    final trackersDone = todayTrackers.where((t) => dayValue(t, entriesToday) != null).length;
+    final dark = Theme.of(context).brightness == Brightness.dark;
 
     return ListView(
-      padding: const EdgeInsets.only(bottom: 96),
+      padding: const EdgeInsets.only(bottom: 110),
       children: [
-        Card(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  done == total ? 'Всё сделано. Хороший день 💪' : 'Сделано $done из $total',
-                  style: Theme.of(context).textTheme.titleMedium,
+        PageHeader(overline: formatDayLong(today), title: greeting(DateTime.now().hour)),
+        HeroCard(
+          colors: dark ? const [Color(0xFF4338CA), Color(0xFF7C3AED)] : const [Color(0xFF6366F1), Color(0xFF8B5CF6)],
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Сделано сегодня',
+                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                    ),
+                    const SizedBox(height: 4),
+                    Text('$done из $total', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
+                    const SizedBox(height: 6),
+                    Text(_motivation(done, total, badDay), style: const TextStyle(color: Colors.white, height: 1.3)),
+                  ],
                 ),
-                const SizedBox(height: 8),
-                ProgressLine(value: total == 0 ? 0 : done / total),
-              ],
-            ),
+              ),
+              const SizedBox(width: 16),
+              ProgressRing(
+                value: total == 0 ? 0 : done / total,
+                size: 84,
+                stroke: 9,
+                color: Colors.white,
+                trackColor: Colors.white24,
+                child: Text(
+                  '${total == 0 ? 0 : (100 * done / total).round()}%',
+                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+                ),
+              ),
+            ],
           ),
         ),
         Card(
           child: SwitchListTile(
-            secondary: const Icon(Icons.battery_2_bar),
+            contentPadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
+            secondary: const EmojiAvatar('🪫', color: Accent.reminders, size: 40),
             title: const Text('Тяжёлый день'),
-            subtitle: const Text('Хватит минимума. Главное не обнулять цепочку'),
+            subtitle: const Text('Засчитывается минимум'),
             value: badDay,
             onChanged: (on) => db.setSetting('bad_day', on ? '$today' : null),
           ),
@@ -171,12 +185,13 @@ class _TodayBody extends StatelessWidget {
         if (nothingPlanned)
           EmptyHint(
             'На сегодня ничего не запланировано. Добавь привычки или трекеры, и они появятся здесь в нужные дни.',
+            icon: Icons.wb_sunny_outlined,
             action: FilledButton.tonal(
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitEditScreen())),
               child: const Text('Добавить привычку'),
             ),
           ),
-        if (todayHabits.isNotEmpty) const SectionTitle('Привычки'),
+        if (todayHabits.isNotEmpty) SectionTitle('Привычки', trailing: _Counter(habitsDone, todayHabits.length)),
         for (final h in todayHabits)
           _HabitTile(
             habit: h,
@@ -185,35 +200,89 @@ class _TodayBody extends StatelessWidget {
             streak: currentStreak(daysMask: h.daysMask, doneDays: doneByHabit[h.id] ?? const {}, today: today),
             today: today,
           ),
-        if (todayTrackers.isNotEmpty) const SectionTitle('Записать'),
+        if (todayTrackers.isNotEmpty) SectionTitle('Записать', trailing: _Counter(trackersDone, todayTrackers.length)),
         for (final t in todayTrackers) TrackerTodayTile(tracker: t, value: dayValue(t, entriesToday), today: today, settings: settings),
         if (todayPrograms.isNotEmpty) ...[
           const SectionTitle('Тренировка'),
           _WorkoutCard(programs: todayPrograms, sessions: sessions, sessionToday: sessionToday, badDay: badDay),
         ],
         const SectionTitle('Вечер'),
-        Card(
-          child: ListTile(
-            leading: Icon(dayNote == null ? Icons.edit_note : Icons.check_circle, color: dayNote == null ? null : Colors.green),
-            title: const Text('Итог дня'),
-            subtitle: Text(
-              dayNote == null
-                  ? '3 дела, которые сделал, и настроение'
-                  : 'Записан${dayNote!.mood == null ? '' : ', настроение ${dayNote!.mood} из 10'}',
-            ),
-            onTap: () => openJournalEditor(context, kind: JournalKind.day, day: today, existing: dayNote),
-          ),
+        _ActionCard(
+          emoji: '📝',
+          color: Accent.journal,
+          title: 'Итог дня',
+          subtitle: dayNote == null
+              ? '3 дела, которые сделал, и настроение'
+              : 'Записан${dayNote!.mood == null ? '' : ' · настроение ${dayNote!.mood} из 10'}',
+          done: dayNote != null,
+          onTap: () => openJournalEditor(context, kind: JournalKind.day, day: today, existing: dayNote),
         ),
         if (dayFromKey(today).weekday == DateTime.sunday)
-          Card(
-            child: ListTile(
-              leading: const Icon(Icons.insights),
-              title: const Text('Обзор недели'),
-              subtitle: const Text('Посмотри итоги и запиши, что меняешь'),
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReportScreen(weekStartDay: weekStart(today)))),
-            ),
+          _ActionCard(
+            emoji: '📊',
+            color: Accent.report,
+            title: 'Обзор недели',
+            subtitle: 'Посмотри итоги и запиши, что меняешь',
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ReportScreen(weekStartDay: weekStart(today)))),
           ),
       ],
+    );
+  }
+
+  String _motivation(int done, int total, bool badDay) {
+    if (total > 0 && done >= total) return 'Всё сделано. Хороший день 💪';
+    if (badDay) return 'Сегодня хватит минимума. Это тоже засчитывается.';
+    if (done == 0) return 'Начни с самого простого дела.';
+    final left = total - done;
+    return 'Осталось $left. Ты уже в пути.';
+  }
+}
+
+String greeting(int hour) {
+  if (hour >= 5 && hour < 12) return 'Доброе утро';
+  if (hour >= 12 && hour < 18) return 'Добрый день';
+  if (hour >= 18) return 'Добрый вечер';
+  return 'Доброй ночи';
+}
+
+class _Counter extends StatelessWidget {
+  const _Counter(this.done, this.total);
+  final int done;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    return Pill('$done / $total', color: done >= total ? Accent.habits : null);
+  }
+}
+
+class _ActionCard extends StatelessWidget {
+  const _ActionCard({
+    required this.emoji,
+    required this.color,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+    this.done = false,
+  });
+  final String emoji;
+  final Color color;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  final bool done;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: ListTile(
+        contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+        leading: EmojiAvatar(emoji, color: color),
+        title: Text(title),
+        subtitle: Text(subtitle),
+        trailing: done ? const CheckDot(checked: true, color: Accent.habits, size: 28) : const Icon(Icons.chevron_right_rounded),
+        onTap: onTap,
+      ),
     );
   }
 }
@@ -230,25 +299,56 @@ class _HabitTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.db;
     final done = log != null;
-    final subtitle = <String>[
-      if (badDay && habit.minimumText != null) 'Минимум: ${habit.minimumText}',
-      if (done && log!.minimum) 'засчитан минимум',
-      if (streak > 0) '🔥 $streak подряд',
-    ];
+    final theme = Theme.of(context);
+    final showMinimum = badDay && habit.minimumText != null && !done;
     return Card(
-      child: ListTile(
-        leading: EmojiAvatar(habit.icon),
-        title: Text(habit.name, style: done ? const TextStyle(decoration: TextDecoration.lineThrough) : null),
-        subtitle: subtitle.isEmpty ? null : Text(subtitle.join(' · ')),
-        trailing: Checkbox(
-          value: done,
-          onChanged: (v) => db.setHabitDone(habit.id, today, done: v ?? false, minimum: badDay),
-        ),
+      child: InkWell(
         onTap: () => db.setHabitDone(habit.id, today, done: !done, minimum: badDay),
         onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HabitDetailScreen(habitId: habit.id))),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
+          child: Row(
+            children: [
+              EmojiAvatar(habit.icon, color: Accent.habits),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(habit.name, style: theme.textTheme.titleMedium),
+                    if (showMinimum)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 2),
+                        child: Text('Минимум: ${habit.minimumText}', style: TextStyle(color: theme.colorScheme.onSurfaceVariant)),
+                      ),
+                    if (streak > 0 || (done && log!.minimum))
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Wrap(
+                          spacing: 6,
+                          children: [
+                            if (streak > 0) Pill('🔥 $streak ${_days(streak)}', color: Accent.workouts),
+                            if (done && log!.minimum) const Pill('минимум', color: Accent.reminders),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              CheckDot(checked: done, half: done && log!.minimum, color: Accent.habits),
+            ],
+          ),
+        ),
       ),
     );
   }
+}
+
+String _days(int n) {
+  final m10 = n % 10, m100 = n % 100;
+  if (m10 == 1 && m100 != 11) return 'день';
+  if (m10 >= 2 && m10 <= 4 && (m100 < 12 || m100 > 14)) return 'дня';
+  return 'дней';
 }
 
 class _WorkoutCard extends StatelessWidget {
@@ -261,15 +361,16 @@ class _WorkoutCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (sessionToday != null) {
-      return Card(
-        child: ListTile(
-          leading: const Icon(Icons.check_circle, color: Colors.green),
-          title: Text('${sessionToday!.programName}: сделано'),
-          subtitle: const Text('Отдых и еда теперь важнее всего'),
-          onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionViewScreen(sessionId: sessionToday!.id))),
-        ),
+      return _ActionCard(
+        emoji: '🏋️',
+        color: Accent.workouts,
+        title: '${sessionToday!.programName}: сделано',
+        subtitle: 'Отдых и еда теперь важнее всего',
+        done: true,
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionViewScreen(sessionId: sessionToday!.id))),
       );
     }
+    final theme = Theme.of(context);
     final suggested = suggestProgram(programs, sessions)!;
     final lastDay = sessions
         .where((s) => s.programId == suggested.id)
@@ -281,26 +382,49 @@ class _WorkoutCard extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(suggested.name, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 4),
-            Text(
-              [
-                if (lastDay != null) 'В прошлый раз: ${dayLabel(lastDay)}' else 'Ещё ни разу',
-                if (suggested.reminderMinutes != null) 'в ${formatMinutes(suggested.reminderMinutes!)}',
-              ].join(' · '),
-            ),
-            if (badDay)
-              const Padding(padding: EdgeInsets.only(top: 4), child: Text('Тяжёлый день: сделай хотя бы разминку и блок для спины.')),
-            const SizedBox(height: 12),
             Row(
               children: [
-                FilledButton.icon(
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: suggested.id))),
-                  icon: const Icon(Icons.play_arrow),
-                  label: const Text('Начать'),
+                const EmojiAvatar('🏋️', color: Accent.workouts),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(suggested.name, style: theme.textTheme.titleMedium),
+                      const SizedBox(height: 2),
+                      Text(
+                        [
+                          if (lastDay != null) 'В прошлый раз: ${dayLabel(lastDay)}' else 'Ещё ни разу',
+                          if (suggested.reminderMinutes != null) 'в ${formatMinutes(suggested.reminderMinutes!)}',
+                        ].join(' · '),
+                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                      ),
+                    ],
+                  ),
                 ),
-                const SizedBox(width: 8),
-                if (programs.length > 1)
+              ],
+            ),
+            if (badDay)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Text(
+                  'Тяжёлый день: сделай хотя бы разминку и блок для спины.',
+                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                ),
+              ),
+            const SizedBox(height: 14),
+            Row(
+              children: [
+                Expanded(
+                  child: FilledButton.icon(
+                    style: FilledButton.styleFrom(backgroundColor: Accent.workouts, foregroundColor: Colors.white),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: suggested.id))),
+                    icon: const Icon(Icons.play_arrow_rounded),
+                    label: const Text('Начать'),
+                  ),
+                ),
+                if (programs.length > 1) ...[
+                  const SizedBox(width: 8),
                   PopupMenuButton<Program>(
                     tooltip: 'Другая тренировка',
                     onSelected: (p) => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: p.id))),
@@ -308,8 +432,18 @@ class _WorkoutCard extends StatelessWidget {
                       for (final p in programs)
                         if (p.id != suggested.id) PopupMenuItem(value: p, child: Text(p.name)),
                     ],
-                    child: const Padding(padding: EdgeInsets.all(8), child: Text('Другая')),
+                    child: Container(
+                      height: 52,
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      alignment: Alignment.center,
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(26),
+                        border: Border.all(color: theme.colorScheme.outline),
+                      ),
+                      child: const Text('Другая'),
+                    ),
                   ),
+                ],
               ],
             ),
           ],

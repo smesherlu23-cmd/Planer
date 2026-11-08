@@ -7,10 +7,11 @@ import '../logic/calc.dart';
 
 /// Простой линейный график значений по дням.
 class LineChart extends StatelessWidget {
-  const LineChart({super.key, required this.points, this.height = 180, this.target});
+  const LineChart({super.key, required this.points, this.height = 180, this.target, this.color});
 
   final List<(int day, double value)> points;
   final double height;
+  final Color? color;
 
   /// Линия цели, если есть.
   final double? target;
@@ -33,8 +34,9 @@ class LineChart extends StatelessWidget {
         painter: _LinePainter(
           points: points,
           target: target,
-          line: scheme.primary,
+          line: color ?? scheme.primary,
           grid: scheme.outlineVariant,
+          surface: scheme.surfaceContainer,
           text: scheme.onSurfaceVariant,
           targetColor: scheme.tertiary,
           labelStyle: Theme.of(context).textTheme.bodySmall ?? const TextStyle(),
@@ -53,7 +55,10 @@ class _LinePainter extends CustomPainter {
     required this.text,
     required this.targetColor,
     required this.labelStyle,
+    required this.surface,
   });
+
+  final Color surface;
 
   final TextStyle labelStyle;
 
@@ -85,7 +90,7 @@ class _LinePainter extends CustomPainter {
     Offset at(int day, double v) => Offset(left + w * daysBetween(first, day) / span, top + h * (1 - (v - minV) / (maxV - minV)));
 
     final gridPaint = Paint()
-      ..color = grid
+      ..color = grid.withValues(alpha: 0.7)
       ..strokeWidth = 1;
     for (var i = 0; i <= 3; i++) {
       final v = minV + (maxV - minV) * i / 3;
@@ -106,32 +111,53 @@ class _LinePainter extends CustomPainter {
       }
     }
 
-    final path = Path();
-    for (var i = 0; i < points.length; i++) {
-      final o = at(points[i].$1, points[i].$2);
-      i == 0 ? path.moveTo(o.dx, o.dy) : path.lineTo(o.dx, o.dy);
+    final offsets = [for (final p in points) at(p.$1, p.$2)];
+    final path = Path()..moveTo(offsets.first.dx, offsets.first.dy);
+    for (var i = 1; i < offsets.length; i++) {
+      // Плавная кривая: середина между точками как опорная.
+      final a = offsets[i - 1], b = offsets[i];
+      final mx = (a.dx + b.dx) / 2;
+      path.cubicTo(mx, a.dy, mx, b.dy, b.dx, b.dy);
     }
+    final fill = Path.from(path)
+      ..lineTo(offsets.last.dx, top + h)
+      ..lineTo(offsets.first.dx, top + h)
+      ..close();
+    canvas.drawPath(
+      fill,
+      Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [line.withValues(alpha: 0.28), line.withValues(alpha: 0)],
+        ).createShader(Rect.fromLTWH(left, top, w, h)),
+    );
     canvas.drawPath(
       path,
       Paint()
         ..color = line
         ..strokeWidth = 2.5
         ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round
         ..strokeJoin = StrokeJoin.round,
     );
     final dot = Paint()..color = line;
-    if (points.length <= 60) {
-      for (final p in points) {
-        canvas.drawCircle(at(p.$1, p.$2), 3, dot);
+    if (points.length <= 30) {
+      for (final o in offsets) {
+        canvas.drawCircle(o, 3.5, Paint()..color = surface);
+        canvas.drawCircle(o, 2.5, dot);
       }
     }
+    // Последняя точка крупнее: это «сейчас».
+    canvas.drawCircle(offsets.last, 6, Paint()..color = surface);
+    canvas.drawCircle(offsets.last, 4.5, dot);
   }
 
   void _label(Canvas canvas, String s, Offset o, double width, TextAlign align) {
     final tp = TextPainter(
       text: TextSpan(
         text: s,
-        style: TextStyle(color: text, fontSize: 11),
+        style: labelStyle.copyWith(color: text, fontSize: 11),
       ),
       textAlign: align,
       textDirection: TextDirection.ltr,
@@ -140,7 +166,64 @@ class _LinePainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_LinePainter old) => old.points != points || old.target != target || old.line != line;
+  bool shouldRepaint(_LinePainter old) => old.points != points || old.target != target || old.line != line || old.surface != surface;
+}
+
+/// Маленький график без подписей, для карточки в списке.
+class Sparkline extends StatelessWidget {
+  const Sparkline({super.key, required this.values, required this.color, this.width = 64, this.height = 30});
+  final List<double> values;
+  final Color color;
+  final double width;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: width,
+      height: height,
+      child: CustomPaint(painter: _SparkPainter(values, color)),
+    );
+  }
+}
+
+class _SparkPainter extends CustomPainter {
+  _SparkPainter(this.values, this.color);
+  final List<double> values;
+  final Color color;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (values.length < 2) return;
+    var minV = values.reduce(math.min), maxV = values.reduce(math.max);
+    if (maxV == minV) {
+      maxV += 1;
+      minV -= 1;
+    }
+    const pad = 3.0;
+    Offset at(int i) => Offset(
+      pad + (size.width - 2 * pad) * i / (values.length - 1),
+      pad + (size.height - 2 * pad) * (1 - (values[i] - minV) / (maxV - minV)),
+    );
+    final path = Path()..moveTo(at(0).dx, at(0).dy);
+    for (var i = 1; i < values.length; i++) {
+      final a = at(i - 1), b = at(i);
+      final mx = (a.dx + b.dx) / 2;
+      path.cubicTo(mx, a.dy, mx, b.dy, b.dx, b.dy);
+    }
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..strokeWidth = 2
+        ..style = PaintingStyle.stroke
+        ..strokeCap = StrokeCap.round,
+    );
+    canvas.drawCircle(at(values.length - 1), 3, Paint()..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_SparkPainter old) => old.values != values || old.color != color;
 }
 
 /// Сетка дней по неделям, как на GitHub: столбец = неделя, строка = день недели.
@@ -153,7 +236,10 @@ class DayGrid extends StatelessWidget {
     required this.isPlanned,
     this.isMinimum,
     this.onTap,
+    this.color,
   });
+
+  final Color? color;
 
   final int today;
   final int weeks;
@@ -197,7 +283,8 @@ class DayGrid extends StatelessWidget {
                         if (future) {
                           color = Colors.transparent;
                         } else if (done) {
-                          color = minimum ? scheme.primary.withValues(alpha: 0.5) : scheme.primary;
+                          final c = this.color ?? scheme.primary;
+                          color = minimum ? c.withValues(alpha: 0.5) : c;
                         } else if (planned) {
                           color = scheme.surfaceContainerHighest;
                         } else {

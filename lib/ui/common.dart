@@ -148,13 +148,53 @@ class SectionTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 20, 8, 6),
+      padding: const EdgeInsets.fromLTRB(20, 22, 12, 8),
       child: Row(
         children: [
           Expanded(
-            child: Text(text, style: Theme.of(context).textTheme.titleSmall?.copyWith(color: Theme.of(context).colorScheme.primary)),
+            child: Text(text, style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
           ),
-          ?trailing,
+          if (trailing != null)
+            Theme(
+              data: Theme.of(context).copyWith(visualDensity: VisualDensity.compact),
+              child: trailing!,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Большой заголовок вкладки: мелкая подпись сверху, крупный заголовок, действия справа.
+class PageHeader extends StatelessWidget {
+  const PageHeader({super.key, required this.title, this.overline, this.actions = const []});
+  final String title;
+  final String? overline;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, MediaQuery.paddingOf(context).top + 20, 8, 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (overline != null)
+                  Text(
+                    overline!.toUpperCase(),
+                    style: theme.textTheme.labelMedium?.copyWith(color: theme.colorScheme.onSurfaceVariant, letterSpacing: 0.8),
+                  ),
+                if (overline != null) const SizedBox(height: 4),
+                Text(title, style: theme.textTheme.headlineMedium),
+              ],
+            ),
+          ),
+          ...actions,
         ],
       ),
     );
@@ -162,33 +202,83 @@ class SectionTitle extends StatelessWidget {
 }
 
 class EmptyHint extends StatelessWidget {
-  const EmptyHint(this.text, {super.key, this.action});
+  const EmptyHint(this.text, {super.key, this.action, this.icon});
   final String text;
   final Widget? action;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
     return Padding(
-      padding: const EdgeInsets.all(32),
+      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 28),
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          if (icon != null) ...[Icon(icon, size: 40, color: scheme.onSurfaceVariant.withValues(alpha: 0.6)), const SizedBox(height: 12)],
           Text(
             text,
             textAlign: TextAlign.center,
-            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant),
+            style: TextStyle(color: scheme.onSurfaceVariant, height: 1.4),
           ),
-          if (action != null) ...[const SizedBox(height: 12), action!],
+          if (action != null) ...[const SizedBox(height: 16), action!],
         ],
       ),
     );
   }
 }
 
-/// Значок-эмодзи в кружке.
+/// Эмодзи в скруглённом квадрате с лёгкой подложкой цвета раздела.
 class EmojiAvatar extends StatelessWidget {
-  const EmojiAvatar(this.emoji, {super.key, this.size = 40});
+  const EmojiAvatar(this.emoji, {super.key, this.size = 44, this.color});
   final String emoji;
+  final double size;
+  final Color? color;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final tint = color ?? scheme.primary;
+    return Container(
+      width: size,
+      height: size,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(tint.withValues(alpha: 0.14), scheme.surfaceContainer),
+        borderRadius: BorderRadius.circular(size * 0.32),
+      ),
+      child: Text(emoji, style: TextStyle(fontSize: size * 0.48, height: 1.15)),
+    );
+  }
+}
+
+/// Значок-иконка в цветном скруглённом квадрате, как в настройках телефона.
+class IconBadge extends StatelessWidget {
+  const IconBadge(this.icon, {super.key, required this.color, this.size = 40, this.soft = false});
+  final IconData icon;
+  final Color color;
+  final double size;
+
+  /// Бледная подложка и цветная иконка вместо яркой заливки.
+  final bool soft;
+
+  @override
+  Widget build(BuildContext context) {
+    final bg = soft ? Color.alphaBlend(color.withValues(alpha: 0.14), Theme.of(context).colorScheme.surfaceContainer) : color;
+    return Container(
+      width: size,
+      height: size,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(size * 0.3)),
+      child: Icon(icon, color: soft ? color : Colors.white, size: size * 0.55),
+    );
+  }
+}
+
+/// Номер в скруглённом квадрате: порядок упражнений и шагов.
+class NumberBadge extends StatelessWidget {
+  const NumberBadge(this.number, {super.key, required this.color, this.size = 36});
+  final int number;
+  final Color color;
   final double size;
 
   @override
@@ -197,23 +287,249 @@ class EmojiAvatar extends StatelessWidget {
       width: size,
       height: size,
       alignment: Alignment.center,
-      decoration: BoxDecoration(color: Theme.of(context).colorScheme.surfaceContainerHighest, shape: BoxShape.circle),
-      child: Text(emoji, style: TextStyle(fontSize: size * 0.5)),
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(color.withValues(alpha: 0.14), Theme.of(context).colorScheme.surfaceContainer),
+        borderRadius: BorderRadius.circular(size * 0.3),
+      ),
+      child: Text(
+        '$number',
+        style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: size * 0.42),
+      ),
     );
   }
 }
 
-/// Прогресс-полоса с подписью.
+/// Толстая скруглённая полоса прогресса.
 class ProgressLine extends StatelessWidget {
-  const ProgressLine({super.key, required this.value, this.color});
+  const ProgressLine({super.key, required this.value, this.color, this.height = 10});
   final double value;
+  final Color? color;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(height),
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: value.clamp(0, 1).toDouble()),
+        duration: const Duration(milliseconds: 500),
+        curve: Curves.easeOutCubic,
+        builder: (context, v, _) => LinearProgressIndicator(
+          value: v,
+          minHeight: height,
+          color: color ?? scheme.primary,
+          backgroundColor: (color ?? scheme.primary).withValues(alpha: 0.15),
+        ),
+      ),
+    );
+  }
+}
+
+/// Кольцо прогресса с текстом в центре.
+class ProgressRing extends StatelessWidget {
+  const ProgressRing({super.key, required this.value, this.size = 88, this.stroke = 10, this.color, this.trackColor, this.child});
+  final double value;
+  final double size;
+  final double stroke;
+  final Color? color;
+  final Color? trackColor;
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    final c = color ?? Theme.of(context).colorScheme.primary;
+    return SizedBox(
+      width: size,
+      height: size,
+      child: TweenAnimationBuilder<double>(
+        tween: Tween(end: value.clamp(0, 1).toDouble()),
+        duration: const Duration(milliseconds: 700),
+        curve: Curves.easeOutCubic,
+        builder: (context, v, child) => CustomPaint(
+          painter: _RingPainter(value: v, color: c, track: trackColor ?? c.withValues(alpha: 0.18), stroke: stroke),
+          child: Center(child: child),
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+class _RingPainter extends CustomPainter {
+  _RingPainter({required this.value, required this.color, required this.track, required this.stroke});
+  final double value;
+  final Color color;
+  final Color track;
+  final double stroke;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final rect = Offset.zero & size;
+    final r = rect.deflate(stroke / 2);
+    final p = Paint()
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = stroke
+      ..strokeCap = StrokeCap.round;
+    canvas.drawArc(r, 0, 6.2832, false, p..color = track);
+    if (value > 0) canvas.drawArc(r, -1.5708, 6.2832 * value, false, p..color = color);
+  }
+
+  @override
+  bool shouldRepaint(_RingPainter old) => old.value != value || old.color != color || old.track != track;
+}
+
+/// Круглая отметка «сделано» с анимацией.
+class CheckDot extends StatelessWidget {
+  const CheckDot({super.key, required this.checked, this.color, this.size = 30, this.half = false});
+  final bool checked;
+  final Color? color;
+  final double size;
+
+  /// Засчитан минимум: заливка бледнее.
+  final bool half;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    final c = color ?? scheme.primary;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 220),
+      curve: Curves.easeOut,
+      width: size,
+      height: size,
+      decoration: BoxDecoration(
+        shape: BoxShape.circle,
+        color: checked ? (half ? c.withValues(alpha: 0.55) : c) : Colors.transparent,
+        border: Border.all(color: checked ? Colors.transparent : scheme.outline, width: 2),
+      ),
+      child: AnimatedScale(
+        scale: checked ? 1 : 0,
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutBack,
+        child: Icon(Icons.check_rounded, size: size * 0.66, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// Маленькая плашка с текстом: «🔥 9», «минимум».
+class Pill extends StatelessWidget {
+  const Pill(this.text, {super.key, this.color});
+  final String text;
   final Color? color;
 
   @override
   Widget build(BuildContext context) {
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(4),
-      child: LinearProgressIndicator(value: value.clamp(0, 1), minHeight: 8, color: color),
+    final scheme = Theme.of(context).colorScheme;
+    final c = color ?? scheme.onSurfaceVariant;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
+      child: Text(
+        text,
+        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: c, fontWeight: FontWeight.w600),
+      ),
+    );
+  }
+}
+
+/// Карточка со списком строк, разделённых тонкой линией.
+class GroupCard extends StatelessWidget {
+  const GroupCard({super.key, required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    return Card(
+      child: Column(
+        children: [
+          for (var i = 0; i < children.length; i++) ...[if (i > 0) const Divider(indent: 72, height: 1), children[i]],
+        ],
+      ),
+    );
+  }
+}
+
+/// Крупная цветная карточка для главной цифры экрана.
+class HeroCard extends StatelessWidget {
+  const HeroCard({super.key, required this.colors, required this.child, this.onTap});
+  final List<Color> colors;
+  final Widget child;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+      child: Material(
+        borderRadius: BorderRadius.circular(24),
+        clipBehavior: Clip.antiAlias,
+        child: Ink(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(colors: colors, begin: Alignment.topLeft, end: Alignment.bottomRight),
+          ),
+          child: InkWell(
+            onTap: onTap,
+            child: Padding(
+              padding: const EdgeInsets.all(20),
+              child: DefaultTextStyle.merge(
+                style: const TextStyle(color: Colors.white),
+                child: child,
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// Цифра с подписью на полупрозрачной плашке внутри [HeroCard].
+class HeroStat extends StatelessWidget {
+  const HeroStat({super.key, required this.label, required this.value});
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(14)),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: const TextStyle(color: Colors.white70, fontSize: 12, fontWeight: FontWeight.w500),
+          ),
+          const SizedBox(height: 2),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Text(
+              value,
+              style: const TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.w700),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Круглая полупрозрачная кнопка-стрелка внутри [HeroCard].
+class HeroArrow extends StatelessWidget {
+  const HeroArrow(this.icon, {super.key, required this.onTap});
+  final IconData icon;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      onPressed: onTap,
+      icon: Icon(icon, color: onTap == null ? Colors.white38 : Colors.white),
+      style: IconButton.styleFrom(backgroundColor: Colors.white.withValues(alpha: 0.16), disabledBackgroundColor: Colors.white10),
+      visualDensity: VisualDensity.compact,
     );
   }
 }

@@ -10,6 +10,7 @@ import '../logic/calc.dart';
 import '../logic/values.dart';
 import 'charts.dart';
 import 'common.dart';
+import 'theme.dart';
 
 class TrackersScreen extends StatelessWidget {
   const TrackersScreen({super.key, this.archived = false});
@@ -25,7 +26,7 @@ class TrackersScreen extends StatelessWidget {
           if (!archived)
             IconButton(
               tooltip: 'Архив',
-              icon: const Icon(Icons.inventory_2_outlined),
+              icon: const Icon(Icons.inventory_2_rounded),
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackersScreen(archived: true))),
             ),
         ],
@@ -35,7 +36,7 @@ class TrackersScreen extends StatelessWidget {
           : FloatingActionButton(
               heroTag: null,
               onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackerEditScreen())),
-              child: const Icon(Icons.add),
+              child: const Icon(Icons.add_rounded),
             ),
       body: Watch(
         streams: () => [db.watchTrackers(archived: archived), db.watchAllEntries()],
@@ -44,36 +45,82 @@ class TrackersScreen extends StatelessWidget {
           final entries = v[1] as List<TrackerEntry>;
           if (trackers.isEmpty) {
             return EmptyHint(
+              icon: Icons.show_chart_rounded,
               archived
                   ? 'В архиве пусто.'
                   : 'Трекер хранит любую величину с историей: вес, время кода, настроение, уровень Faceit. Нажми +, чтобы добавить.',
             );
           }
           return ListView(
-            padding: const EdgeInsets.only(top: 8, bottom: 88),
-            children: [
-              for (final t in trackers)
-                Card(
-                  child: ListTile(
-                    leading: EmojiAvatar(t.icon),
-                    title: Text(t.name),
-                    subtitle: Text(_lastLabel(t, entries)),
-                    trailing: archived ? null : IconButton(icon: const Icon(Icons.add), onPressed: () => showEntryDialog(context, t)),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrackerDetailScreen(trackerId: t.id))),
-                  ),
-                ),
-            ],
+            padding: const EdgeInsets.only(top: 4, bottom: 96),
+            children: [for (final t in trackers) _TrackerCard(tracker: t, entries: entries, archived: archived)],
           );
         },
       ),
     );
   }
+}
 
-  String _lastLabel(Tracker t, List<TrackerEntry> entries) {
+class _TrackerCard extends StatelessWidget {
+  const _TrackerCard({required this.tracker, required this.entries, required this.archived});
+  final Tracker tracker;
+  final List<TrackerEntry> entries;
+  final bool archived;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = tracker;
+    final theme = Theme.of(context);
+    final muted = theme.colorScheme.onSurfaceVariant;
     final series = dailySeries(t, entries);
-    if (series.isEmpty) return '${trackerKindLabel(t.kind)} · пока нет записей';
-    final last = series.last;
-    return '${formatTrackerValue(t, last.$2)} · ${dayLabel(last.$1)}';
+    final last = series.lastOrNull;
+    final spark = series.length > 14 ? series.sublist(series.length - 14) : series;
+    return Card(
+      child: InkWell(
+        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrackerDetailScreen(trackerId: t.id))),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
+          child: Row(
+            children: [
+              EmojiAvatar(t.icon, color: Accent.trackers),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(t.name, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    if (last == null)
+                      Text('${trackerKindLabel(t.kind)} · пока нет записей', style: TextStyle(color: muted))
+                    else
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: formatTrackerValue(t, last.$2),
+                              style: const TextStyle(fontWeight: FontWeight.w700, color: Accent.trackers),
+                            ),
+                            TextSpan(
+                              text: '  ${dayLabel(last.$1)}',
+                              style: TextStyle(color: muted),
+                            ),
+                          ],
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+              if (t.kind != TrackerKind.yesNo && spark.length >= 2) ...[
+                Sparkline(values: [for (final p in spark) p.$2], color: Accent.trackers),
+                const SizedBox(width: 6),
+              ],
+              if (!archived)
+                IconButton(tooltip: 'Записать', icon: const Icon(Icons.add_rounded), onPressed: () => showEntryDialog(context, t)),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }
 
@@ -94,27 +141,53 @@ class TrackerTodayTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final started = int.tryParse(settings[timerKey(tracker.id)] ?? '');
     final isDuration = tracker.kind == TrackerKind.duration;
+    final theme = Theme.of(context);
+    final running = started != null;
     return Card(
-      child: ListTile(
-        leading: EmojiAvatar(tracker.icon),
-        title: Text(tracker.name),
-        subtitle: started != null
-            ? _Elapsed(since: DateTime.fromMillisecondsSinceEpoch(started), prefix: 'Идёт таймер: ')
-            : Text(value == null ? 'не записано' : formatTrackerValue(tracker, value!)),
-        trailing: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            if (isDuration)
-              IconButton.filledTonal(
-                tooltip: started == null ? 'Запустить таймер' : 'Остановить и записать',
-                icon: Icon(started == null ? Icons.play_arrow : Icons.stop),
-                onPressed: () => started == null ? startTimer(context, tracker) : stopTimer(context, tracker, started),
-              ),
-            if (value != null && started == null) const Icon(Icons.check_circle, color: Colors.green),
-          ],
-        ),
+      child: InkWell(
         onTap: () => showEntryDialog(context, tracker, day: today),
         onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrackerDetailScreen(trackerId: tracker.id))),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
+          child: Row(
+            children: [
+              EmojiAvatar(tracker.icon, color: Accent.trackers),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(tracker.name, style: theme.textTheme.titleMedium),
+                    const SizedBox(height: 2),
+                    if (running)
+                      _Elapsed(since: DateTime.fromMillisecondsSinceEpoch(started), prefix: 'Таймер идёт · ')
+                    else
+                      Text(
+                        value == null ? 'Нажми, чтобы записать' : formatTrackerValue(tracker, value!),
+                        style: value == null
+                            ? TextStyle(color: theme.colorScheme.onSurfaceVariant)
+                            : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600, color: Accent.trackers),
+                      ),
+                  ],
+                ),
+              ),
+              if (isDuration)
+                IconButton.filled(
+                  style: IconButton.styleFrom(
+                    backgroundColor: running ? theme.colorScheme.error : Accent.trackers,
+                    foregroundColor: Colors.white,
+                  ),
+                  tooltip: running ? 'Остановить и записать' : 'Запустить таймер',
+                  icon: Icon(running ? Icons.stop_rounded : Icons.play_arrow_rounded),
+                  onPressed: () => running ? stopTimer(context, tracker, started) : startTimer(context, tracker),
+                ),
+              if (!isDuration || value != null) ...[
+                const SizedBox(width: 6),
+                CheckDot(checked: value != null && !running, color: Accent.habits),
+              ],
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -169,7 +242,11 @@ class _ElapsedState extends State<_Elapsed> {
     final text = '${d.inHours}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
     return Text(
       '${widget.prefix}$text',
-      style: TextStyle(color: Theme.of(context).colorScheme.primary, fontFeatures: const []),
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.error,
+        fontWeight: FontWeight.w600,
+        fontFeatures: const [FontFeature.tabularFigures()],
+      ),
     );
   }
 }
@@ -325,12 +402,15 @@ class TrackerDetailScreen extends StatelessWidget {
         final chartPoints = series.length > 120 ? series.sublist(series.length - 120) : series;
         final from30 = addDays(todayKey(), -29);
         final summary30 = periodSummary(t, entries.where((e) => e.day >= from30));
+        final theme = Theme.of(context);
+        final muted = theme.colorScheme.onSurfaceVariant;
+        final last = series.lastOrNull;
         return Scaffold(
           appBar: AppBar(
-            title: Text('${t.icon} ${t.name}'),
+            title: Text(t.name),
             actions: [
               IconButton(
-                icon: const Icon(Icons.edit_outlined),
+                icon: const Icon(Icons.edit_rounded),
                 tooltip: 'Изменить',
                 onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrackerEditScreen(tracker: t))),
               ),
@@ -338,49 +418,132 @@ class TrackerDetailScreen extends StatelessWidget {
           ),
           floatingActionButton: t.archived
               ? null
-              : FloatingActionButton(heroTag: null, onPressed: () => showEntryDialog(context, t), child: const Icon(Icons.add)),
-          body: ListView(
-            padding: const EdgeInsets.only(bottom: 88),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-                child: Text(
-                  [
-                    trackerKindLabel(t.kind),
-                    if (t.daysMask != 0) 'на «Сегодня»: ${maskLabel(t.daysMask)}',
-                    if (t.reminderMinutes != null) 'напоминание в ${formatMinutes(t.reminderMinutes!)}',
-                  ].join(' · '),
+              : FloatingActionButton.extended(
+                  heroTag: null,
+                  onPressed: () => showEntryDialog(context, t),
+                  icon: const Icon(Icons.add_rounded),
+                  label: const Text('Записать'),
                 ),
-              ),
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
-                child: Text('За 30 дней: ${summary30.label}', style: Theme.of(context).textTheme.titleSmall),
+          body: ListView(
+            padding: const EdgeInsets.only(bottom: 110),
+            children: [
+              Card(
+                child: Padding(
+                  padding: const EdgeInsets.all(20),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          EmojiAvatar(t.icon, size: 56, color: Accent.trackers),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(last == null ? 'Пока нет записей' : 'Последнее: ${dayLabel(last.$1)}', style: TextStyle(color: muted)),
+                                if (last != null)
+                                  FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
+                                    child: Text(formatTrackerValue(t, last.$2), style: theme.textTheme.headlineMedium),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 6,
+                        children: [
+                          Pill(trackerKindLabel(t.kind), color: Accent.trackers),
+                          if (t.daysMask != 0) Pill('на «Сегодня»: ${maskLabel(t.daysMask)}'),
+                          if (t.reminderMinutes != null) Pill('⏰ ${formatMinutes(t.reminderMinutes!)}'),
+                          if (goal != null) Pill('🎯 ${goal.name}', color: Accent.goals),
+                        ],
+                      ),
+                      const SizedBox(height: 14),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            TextSpan(
+                              text: 'За 30 дней: ',
+                              style: TextStyle(color: muted),
+                            ),
+                            TextSpan(
+                              text: summary30.label,
+                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
               ),
               if (t.kind != TrackerKind.yesNo)
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 16, 16, 8),
-                  child: LineChart(points: chartPoints, target: goal != null && t.kind != TrackerKind.duration ? goal.targetValue : null),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(8, 18, 16, 10),
+                    child: LineChart(
+                      points: chartPoints,
+                      color: Accent.trackers,
+                      target: goal != null && t.kind != TrackerKind.duration ? goal.targetValue : null,
+                    ),
+                  ),
                 ),
               const SectionTitle('Записи'),
-              if (entries.isEmpty) const EmptyHint('Пока нет записей'),
-              for (final e in entries)
-                ListTile(
-                  title: Text(formatTrackerValue(t, e.value)),
-                  subtitle: Text([dayLabel(e.day), if (e.note != null) e.note!].join(' · ')),
-                  onTap: () => showEntryDialog(context, t, existing: e),
-                  trailing: IconButton(
-                    icon: const Icon(Icons.delete_outline),
-                    onPressed: () async {
-                      if (await confirm(context, 'Удалить запись?', ok: 'Удалить', danger: true)) {
-                        await db.deleteById(db.trackerEntries, e.id);
-                      }
-                    },
-                  ),
+              if (entries.isEmpty) const Card(child: EmptyHint('Пока нет записей', icon: Icons.edit_note_rounded)),
+              if (entries.isNotEmpty)
+                GroupCard(
+                  children: [
+                    for (final e in entries)
+                      ListTile(
+                        leading: _DayColumn(e.day),
+                        title: Text(formatTrackerValue(t, e.value), style: const TextStyle(fontWeight: FontWeight.w600)),
+                        subtitle: e.note == null ? null : Text(e.note!),
+                        onTap: () => showEntryDialog(context, t, existing: e),
+                        trailing: IconButton(
+                          icon: const Icon(Icons.delete_outline_rounded),
+                          onPressed: () async {
+                            if (await confirm(context, 'Удалить запись?', ok: 'Удалить', danger: true)) {
+                              await db.deleteById(db.trackerEntries, e.id);
+                            }
+                          },
+                        ),
+                      ),
+                  ],
                 ),
             ],
           ),
         );
       },
+    );
+  }
+}
+
+const _monthsShort = ['янв', 'фев', 'мар', 'апр', 'мая', 'июн', 'июл', 'авг', 'сен', 'окт', 'ноя', 'дек'];
+
+/// Дата столбиком для узкой колонки слева: число крупно, месяц мелко.
+class _DayColumn extends StatelessWidget {
+  const _DayColumn(this.day);
+  final int day;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final d = dayFromKey(day);
+    return SizedBox(
+      width: 40,
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Text('${d.day}', style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700, height: 1.1)),
+          Text(_monthsShort[d.month - 1], style: theme.textTheme.labelSmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+        ],
+      ),
     );
   }
 }
