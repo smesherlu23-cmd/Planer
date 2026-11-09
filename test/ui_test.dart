@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:planer/app.dart';
 import 'package:planer/data/database.dart';
 import 'package:planer/data/dates.dart';
+import 'package:planer/data/goal_queries.dart';
 import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
 import 'package:planer/logic/sleep.dart';
@@ -96,6 +97,53 @@ void main() {
           body: const Value('Что сделал сегодня:\n1. Час кода\n2. Тренировка A\n3. Лёг до 23:00'),
         ),
       );
+      // Дневник за две недели с тегами и победами, цель из этапов и цель с ручными отметками.
+      for (var i = 2; i <= 13; i++) {
+        await db.saveJournal(
+          JournalEntriesCompanion.insert(
+            kind: JournalKind.day,
+            day: addDays(today, -i),
+            mood: Value(i % 3 == 0 ? 5 : 8),
+            energy: Value(2 + i % 3),
+            tags: Value(i % 3 == 0 ? 'работа, плохой сон' : 'спорт, код'),
+            wins: Value('Час кода\nТренировка ${i.isEven ? 'A' : 'B'}'),
+            focus: Value(i == 2 ? 'Доделать резюме' : null),
+          ),
+        );
+      }
+      final steps = await db.saveGoal(
+        GoalsCompanion.insert(
+          name: 'Найти работу backend',
+          kind: GoalKind.steps,
+          startValue: 0,
+          targetValue: 0,
+          startDay: addDays(today, -20),
+          deadline: Value(addDays(today, 120)),
+          area: const Value(GoalArea.career),
+          why: const Value('Работать программистом и жить отдельно'),
+          obstacle: const Value('Устаю после смены'),
+          plan: const Value('Делаю хотя бы 20 минут кода сразу после ужина'),
+          habitIds: Value('${habits.first.id}'),
+        ),
+      );
+      for (final (i, t) in ['Повторить Python', 'Проект на FastAPI', 'Docker и деплой', 'Резюме и GitHub', 'Отклики'].indexed) {
+        final id = await db.addGoalStep(steps, t, dueDay: addDays(today, 10 + i * 20));
+        if (i < 2) await db.setGoalStepDone(id, true, day: addDays(today, -10 + i * 5));
+      }
+      final books = await db.saveGoal(
+        GoalsCompanion.insert(
+          name: 'Прочитать 12 книг',
+          kind: GoalKind.manual,
+          startValue: 0,
+          targetValue: 12,
+          unit: const Value('книг'),
+          startDay: addDays(today, -60),
+          deadline: Value(addDays(today, 300)),
+          area: const Value(GoalArea.study),
+        ),
+      );
+      await db.addGoalCheckin(books, 1, day: addDays(today, -40));
+      await db.addGoalCheckin(books, 3, day: addDays(today, -5));
       // Сон за две недели, кроме сегодняшней ночи, и еда с водой за неделю.
       for (var i = 1; i <= 13; i++) {
         final bed = [23 * 60, 23 * 60 + 40, 22 * 60 + 50, 23 * 60 + 10, 15][i % 5];
@@ -347,8 +395,62 @@ void main() {
     await back(tester);
     await pumpData(tester);
     await openFromMore('Цели', '07_goals');
-    await openFromMore('Записи', '08_journal');
-    await openFromMore('Отчёт недели', '09_report');
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Цели').hitTestable().first);
+    await pumpData(tester);
+    await tester.tap(find.text('Найти работу backend').hitTestable().first);
+    await pumpData(tester);
+    expect(find.text('Проект на FastAPI'), findsOneWidget);
+    await shot(tester, '07b_goal_detail');
+    await tester.scrollUntilVisible(find.text('Заметки').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '07c_goal_detail_plan');
+    await back(tester);
+    await pumpData(tester);
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await pumpData(tester);
+    await shot(tester, '07d_goal_edit');
+    await back(tester);
+    await pumpData(tester);
+    await back(tester);
+    await pumpData(tester);
+
+    await openFromMore('Дневник', '08_journal');
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Дневник').hitTestable().first);
+    await pumpData(tester);
+    await tester.tap(find.text('Календарь'));
+    await pumpData(tester);
+    await shot(tester, '08b_journal_calendar');
+    await tester.tap(find.text('Выводы'));
+    await pumpData(tester);
+    expect(find.text('#спорт'), findsOneWidget);
+    await shot(tester, '08c_journal_insights');
+    await tester.tap(find.text('Лента'));
+    await pumpData(tester);
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await pumpData(tester);
+    await tester.tap(find.text('Итог дня').hitTestable().last);
+    await pumpData(tester);
+    expect(find.text('Победы дня'), findsOneWidget);
+    await shot(tester, '08d_journal_day');
+    await back(tester);
+    await pumpData(tester);
+    await back(tester);
+    await pumpData(tester);
+
+    await openFromMore('Итоги', '09_report');
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Итоги').hitTestable().first);
+    await pumpData(tester);
+    await tester.tap(find.text('Месяц'));
+    await pumpData(tester);
+    await shot(tester, '09b_report_month');
+    await tester.tap(find.text('День'));
+    await pumpData(tester);
+    await shot(tester, '09c_report_day');
+    await back(tester);
+    await pumpData(tester);
     await openFromMore('Напоминания', '10_reminders');
     await openFromMore('Настройки и данные', '11_settings');
 
