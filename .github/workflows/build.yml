@@ -37,6 +37,18 @@ jobs:
       - name: Проверка кода
         run: flutter analyze
 
+      # Сборщик sqlite3 для тестов скачивает библиотеку с github.com. При сбое сети приходит не тот файл,
+      # поэтому сначала скачиваем её отдельным коротким прогоном с повтором. Сами тесты идут один раз, ниже.
+      - name: Библиотеки для тестов
+        run: |
+          for attempt in 1 2 3; do
+            if flutter test test/calc_test.dart > /dev/null; then exit 0; fi
+            echo "Не скачалось, попытка $attempt из 3. Повтор через 30 секунд."
+            rm -rf .dart_tool/hooks_runner
+            sleep 30
+          done
+          exit 1
+
       - name: Тесты
         run: flutter test
 
