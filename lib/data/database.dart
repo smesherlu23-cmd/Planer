@@ -61,6 +61,9 @@ enum RecurringKind { expense, income, fund }
 /// На что уходит время в плане дня.
 enum BlockKind { sleep, work, study, sport, rest, home, road, food, other }
 
+/// Как повторяется задача. Следующая копия создаётся, когда отмечаешь текущую.
+enum TaskRepeat { none, daily, weekdays, weekly, monthly }
+
 enum JournalKind {
   /// Итог дня.
   day,
@@ -545,6 +548,47 @@ class TimeBlocks extends Table {
 }
 
 /// Строка бюджета на месяц: плановый доход по категории, лимит расходов по категории или взнос в копилку и платёж по долгу.
+/// Задача: разовое дело с датой, временем, приоритетом и оценкой.
+class Tasks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+
+  /// Шаг большой задачи. Удаляется вместе с ней.
+  IntColumn get parentId => integer().nullable().references(Tasks, #id, onDelete: KeyAction.cascade)();
+
+  /// День как 20261109. null: во «Входящих», день ещё не выбран.
+  IntColumn get day => integer().nullable()();
+
+  /// Время в минутах от полуночи.
+  IntColumn get time => integer().nullable()();
+  BoolColumn get remind => boolean().withDefault(const Constant(false))();
+
+  /// 1 главное, 2 важное, 3 обычное, 4 без приоритета.
+  IntColumn get priority => integer().withDefault(const Constant(4))();
+
+  /// Сколько минут займёт, по оценке.
+  IntColumn get estimate => integer().nullable()();
+
+  /// Сфера, как у блоков плана дня: задача подсказывается в блоке того же вида.
+  IntColumn get kind => intEnum<BlockKind>().nullable()();
+  IntColumn get repeat => intEnum<TaskRepeat>().withDefault(const Constant(0))();
+  IntColumn get doneDay => integer().nullable()();
+  DateTimeColumn get doneAt => dateTime().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Отрезок сосредоточенной работы из таймера фокуса.
+class FocusSessions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime()();
+  IntColumn get minutes => integer()();
+  IntColumn get taskId => integer().nullable().references(Tasks, #id, onDelete: KeyAction.setNull)();
+  IntColumn get kind => intEnum<BlockKind>().nullable()();
+}
+
 class BudgetLines extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -599,6 +643,8 @@ class Settings extends Table {
     BudgetLines,
     Transfers,
     Recurrings,
+    Tasks,
+    FocusSessions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -631,29 +677,21 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(workoutSessions, workoutSessions.minimum);
         await moveLegacyHardDay();
       }
-      // Таблицы питания, созданные шагом версии 2, уже с новыми колонками: добавляем только недостающие.
-      Future<void> add(TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
-        final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
-        if (!cols.any((c) => c.read<String>('name') == column.name)) await m.addColumn(table, column);
-      }
-
       if (from < 4) {
         // Версия 4: жиры и углеводы у блюд и записей, приём пищи у записи.
-        await add(foods, foods.fat);
-        await add(foods, foods.carbs);
-        await add(meals, meals.fat);
-        await add(meals, meals.carbs);
-        await add(meals, meals.slot);
+        // Таблицы питания, созданные шагом версии 2, уже с новыми колонками: добавляются только недостающие.
+        await addMissingColumns(m, foods, [foods.fat, foods.carbs]);
+        await addMissingColumns(m, meals, [meals.fat, meals.carbs, meals.slot]);
         await fillTemplateMacros();
       }
       if (from < 6) {
-        // Версии 5–6: модули разрабатывались параллельно и каждый поднимал версию до 5. Все шаги ниже
-        // добавляют только недостающее, поэтому база любого промежуточного выпуска с версией 5 догоняется целиком.
-        // Версия 5: вес порции и рецепты у блюд, вес у записи.
-        await add(foods, foods.grams);
-        await add(foods, foods.ingredients);
-        await add(meals, meals.grams);
-        // Версия 5: привычки-количества, N раз в неделю, бросить; дневник сна.
+        // Версии 5 и 6. Модули делались параллельно, и каждый поднимал версию до 5. Поэтому всё ниже добавляет
+        // только недостающее: база с любой промежуточной версией 5 догоняется целиком, повтор ничего не ломает.
+        await createMissingTables(m, [goalSteps, goalCheckins, tasks, focusSessions]);
+        // Питание: вес порции и рецепты у блюд, вес у записи.
+        await addMissingColumns(m, foods, [foods.grams, foods.ingredients]);
+        await addMissingColumns(m, meals, [meals.grams]);
+        // Привычки: количество, N раз в неделю, «бросить», подсказки. Дневник сна.
         await addMissingColumns(m, habits, [
           habits.kind,
           habits.target,
@@ -669,18 +707,20 @@ class AppDatabase extends _$AppDatabase {
           '"habit_id" INTEGER NOT NULL REFERENCES habits (id) ON DELETE CASCADE, "day" INTEGER NOT NULL, "value" REAL NULL, '
           '"skipped" INTEGER NOT NULL DEFAULT 0 CHECK ("skipped" IN (0, 1)), "note" TEXT NULL, UNIQUE ("habit_id", "day"))',
         );
-        // Версия 5: спорт. Мышцы и отдых у упражнений, длительность и самочувствие у тренировки.
-        await _addColumnIfMissing(m, programExercises, programExercises.muscle);
-        await _addColumnIfMissing(m, programExercises, programExercises.restSec);
-        await _addColumnIfMissing(m, workoutSessions, workoutSessions.durationSec);
-        await _addColumnIfMissing(m, workoutSessions, workoutSessions.feel);
-        // Версия 5: цели с этапами и ручными отметками, сферы, мотив и план; дневник с победами, тегами и фокусом.
-        await _createTableOnce(m, goalSteps);
-        await _createTableOnce(m, goalCheckins);
-        for (final c in <GeneratedColumn<Object>>[goals.area, goals.unit, goals.why, goals.obstacle, goals.plan, goals.habitIds, goals.achievedDay]) {
-          await _addColumnOnce(m, goals, c);
-        }
-        for (final c in <GeneratedColumn<Object>>[
+        // Спорт: мышцы и отдых у упражнений, длительность и самочувствие у тренировки.
+        await addMissingColumns(m, programExercises, [programExercises.muscle, programExercises.restSec]);
+        await addMissingColumns(m, workoutSessions, [workoutSessions.durationSec, workoutSessions.feel]);
+        // Цели: сферы, мотив и план. Дневник: победы, теги и фокус.
+        await addMissingColumns(m, goals, [
+          goals.area,
+          goals.unit,
+          goals.why,
+          goals.obstacle,
+          goals.plan,
+          goals.habitIds,
+          goals.achievedDay,
+        ]);
+        await addMissingColumns(m, journalEntries, [
           journalEntries.title,
           journalEntries.energy,
           journalEntries.tags,
@@ -689,10 +729,8 @@ class AppDatabase extends _$AppDatabase {
           journalEntries.lesson,
           journalEntries.focus,
           journalEntries.goalId,
-        ]) {
-          await _addColumnOnce(m, journalEntries, c);
-        }
-        // Версия 5: счета, переводы, регулярные платежи. Шаг можно повторить без вреда.
+        ]);
+        // Деньги: счета, переводы, регулярные платежи.
         await addMoneyAccounts(m);
       }
     },
@@ -710,33 +748,23 @@ class AppDatabase extends _$AppDatabase {
     }
   }
 
-  /// Добавить столбец, только если его ещё нет: шаги миграций из параллельных веток можно применять в любом порядке.
-  Future<void> _addColumnIfMissing(Migrator m, TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
-    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
-    if (!cols.any((c) => c.read<String>('name') == column.name)) await m.addColumn(table, column);
-  }
-
-  Future<bool> _hasColumn(TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
-    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
-    return cols.any((c) => c.read<String>('name') == column.name);
-  }
-
-  Future<bool> _hasTable(TableInfo<Table, Object?> table) async {
-    final rows = await customSelect(
-      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
-      variables: [Variable(table.actualTableName)],
-    ).get();
-    return rows.isNotEmpty;
+  /// Создать таблицы, которых ещё нет.
+  Future<void> createMissingTables(Migrator m, List<TableInfo<Table, Object?>> tables) async {
+    for (final t in tables) {
+      final found = await customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        variables: [Variable<String>(t.actualTableName)],
+      ).get();
+      if (found.isEmpty) await m.createTable(t);
+    }
   }
 
   /// Счета появились в версии 5. Старые операции и взносы относим к счёту «Карта»,
   /// чтобы остаток сразу считался; его можно поправить, указав, сколько на карте сейчас.
   Future<void> addMoneyAccounts(Migrator m) async {
-    for (final t in <TableInfo<Table, Object?>>[accounts, transfers, recurrings]) {
-      if (!await _hasTable(t)) await m.createTable(t);
-    }
-    if (!await _hasColumn(transactions, transactions.accountId)) await m.addColumn(transactions, transactions.accountId);
-    if (!await _hasColumn(fundMoves, fundMoves.accountId)) await m.addColumn(fundMoves, fundMoves.accountId);
+    await createMissingTables(m, [accounts, transfers, recurrings]);
+    await addMissingColumns(m, transactions, [transactions.accountId]);
+    await addMissingColumns(m, fundMoves, [fundMoves.accountId]);
     final hasAccounts = (await customSelect('SELECT id FROM accounts LIMIT 1').get()).isNotEmpty;
     final hasTxs = (await customSelect('SELECT id FROM transactions LIMIT 1').get()).isNotEmpty;
     if (!hasAccounts && hasTxs) {

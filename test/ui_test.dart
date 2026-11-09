@@ -15,6 +15,7 @@ import 'package:planer/data/goal_queries.dart';
 import 'package:planer/data/money_queries.dart';
 import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
+import 'package:planer/data/time_queries.dart';
 import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
 import 'package:planer/ui/habits_screen.dart';
@@ -243,6 +244,44 @@ void main() {
           fundId: Value(funds.first.id),
         ),
       );
+      // Задачи и фокус для модуля «Время».
+      final docker = await db.saveTask(
+        TasksCompanion.insert(
+          title: 'Урок Docker: volumes',
+          day: Value(today),
+          priority: const Value(1),
+          estimate: const Value(60),
+          kind: const Value(BlockKind.study),
+        ),
+      );
+      for (final step in ['Посмотреть видео', 'Повторить команды', 'Записать конспект']) {
+        await db.saveTask(TasksCompanion.insert(title: step, parentId: Value(docker)));
+      }
+      await db.saveTask(
+        TasksCompanion.insert(
+          title: 'Оплатить кредит',
+          day: Value(today),
+          time: const Value(19 * 60),
+          remind: const Value(true),
+          priority: const Value(2),
+        ),
+      );
+      await db.saveTask(TasksCompanion.insert(title: 'Резюме: черновик', day: Value(addDays(today, -2)), estimate: const Value(30)));
+      await db.saveTask(TasksCompanion.insert(title: 'Купить протеин', kind: const Value(BlockKind.home)));
+      await db.saveTask(
+        TasksCompanion.insert(
+          title: 'FastAPI: роуты',
+          day: Value(addDays(today, 2)),
+          kind: const Value(BlockKind.study),
+          estimate: const Value(90),
+        ),
+      );
+      final done = await db.saveTask(TasksCompanion.insert(title: 'Разобрать почту', day: Value(today)));
+      await db.setTaskDone((await db.taskById(done))!, true);
+      for (var i = 0; i < 6; i++) {
+        final at = dayFromKey(addDays(today, -i)).add(const Duration(hours: 19));
+        await db.addFocus(at: at, minutes: 25 + i * 5, taskId: i.isEven ? docker : null, kind: BlockKind.study);
+      }
       final programs = await db.select(db.programs).get();
       await db.saveSession(
         program: programs.first,
@@ -390,7 +429,46 @@ void main() {
     await back(tester);
     await pumpData(tester);
 
-    await openFromMore('План дня', '15_day_plan');
+    // Модуль «Время»: свои вкладки внизу.
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Время и задачи').hitTestable().first);
+    await pumpData(tester);
+    expect(find.text('Урок Docker: volumes'), findsWidgets);
+    expect(find.text('Просрочено'), findsOneWidget);
+    await shot(tester, '15_time_tasks');
+    Future<void> timeTab(String label, String name) async {
+      await tester.tap(find.text(label).hitTestable().last);
+      await pumpData(tester);
+      await shot(tester, name);
+    }
+
+    await timeTab('Скоро', '15b_time_upcoming');
+    await timeTab('Входящие 1', '15c_time_inbox');
+    await timeTab('Сегодня', '15_time_tasks');
+    // Быстрый ввод: дата, время, приоритет и оценка из текста.
+    await tester.tap(find.widgetWithText(FloatingActionButton, 'Задача').hitTestable());
+    await pumpData(tester);
+    await shot(tester, '15d_task_sheet');
+    await tester.enterText(find.widgetWithText(TextField, 'Что сделать'), 'Повторить SQL завтра в 18:30 !2 ~45м #учёба');
+    await tester.testTextInput.receiveAction(TextInputAction.done);
+    await pumpData(tester);
+    final added = (await tester.runAsync(() => db.allTasks()))!.firstWhere((t) => t.title == 'Повторить SQL');
+    expect(added.day, addDays(today, 1));
+    expect(added.time, 18 * 60 + 30);
+    expect(added.priority, 2);
+    expect(added.estimate, 45);
+    expect(added.kind, BlockKind.study);
+    await timeTab('День', '15e_time_day');
+    await timeTab('Фокус', '15f_time_focus');
+    await tester.tap(find.text('Начать').hitTestable().first);
+    await pumpData(tester);
+    expect(await tester.runAsync(() => db.focusState()), isNotNull);
+    await shot(tester, '15g_time_focus_running');
+    await tester.tap(find.text('Стоп').hitTestable().first);
+    await pumpData(tester);
+    await timeTab('Итоги', '15h_time_stats');
+    await back(tester);
+    await pumpData(tester);
     await openFromMore('Сон', '12_sleep');
     // Разбор сна и инструменты.
     await tab('Ещё', '05_more');

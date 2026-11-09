@@ -22,8 +22,8 @@ class MoreScreen extends StatelessWidget {
       _Tile(
         icon: Icons.view_timeline_rounded,
         color: Accent.report,
-        title: 'План дня',
-        subtitle: 'Куда уходит время',
+        title: 'Время и задачи',
+        subtitle: 'Задачи, план дня, фокус',
         onTap: () => open(const DayPlanScreen()),
       ),
       _Tile(

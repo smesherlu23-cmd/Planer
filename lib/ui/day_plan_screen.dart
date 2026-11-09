@@ -5,12 +5,18 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/icon_keys.dart';
 import '../data/queries.dart';
+import '../data/time_queries.dart';
 import '../logic/day_plan.dart';
+import '../logic/focus.dart';
 import '../logic/sleep.dart';
+import '../logic/tasks.dart';
 import 'common.dart';
+import 'focus_screen.dart';
 import 'icons.dart';
 import 'sleep_screen.dart';
+import 'tasks_screen.dart';
 import 'theme.dart';
+import 'time_stats_screen.dart';
 
 Color kindColor(BlockKind k) => switch (k) {
   BlockKind.sleep => Accent.sleep,
@@ -24,28 +30,112 @@ Color kindColor(BlockKind k) => switch (k) {
   BlockKind.other => const Color(0xFF94A3B8),
 };
 
+const _taskKinds = {BlockKind.study, BlockKind.home, BlockKind.other, BlockKind.sport};
+
 int _nowMinute() => DateTime.now().hour * 60 + DateTime.now().minute;
 
+enum TimeTab { tasks, day, focus, stats }
+
+/// Даёт вкладкам модуля переключаться друг на друга: «Фокус на задаче» открывает таймер.
+class TimeModule extends InheritedWidget {
+  const TimeModule({super.key, required this.openTab, required super.child});
+  final ValueChanged<TimeTab> openTab;
+
+  static TimeModule? maybeOf(BuildContext context) => context.getInheritedWidgetOfExactType<TimeModule>();
+
+  @override
+  bool updateShouldNotify(TimeModule oldWidget) => false;
+}
+
+/// Модуль «Время»: задачи, план дня, таймер фокуса и итоги. Свои вкладки внизу, как у отдельного приложения.
 class DayPlanScreen extends StatefulWidget {
-  const DayPlanScreen({super.key});
+  const DayPlanScreen({super.key, this.tab = TimeTab.tasks});
+  final TimeTab tab;
 
   @override
   State<DayPlanScreen> createState() => _DayPlanScreenState();
 }
 
 class _DayPlanScreenState extends State<DayPlanScreen> {
+  late var _tab = widget.tab;
+
+  @override
+  void initState() {
+    super.initState();
+    // Таймер мог закончиться, пока приложение было закрыто: записываем отрезок.
+    context.db.finishFocusIfDue();
+  }
+
+  void _open(TimeTab t) => setState(() => _tab = t);
+
+  @override
+  Widget build(BuildContext context) {
+    final db = context.db;
+    return TimeModule(
+      openTab: _open,
+      child: Scaffold(
+        body: IndexedStack(index: _tab.index, children: const [TasksTab(), DayTab(), FocusTab(), TimeStatsTab()]),
+        bottomNavigationBar: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (_tab != TimeTab.focus)
+              Watch(
+                streams: () => [db.watchSetting(focusSettingKey), db.watchTasks()],
+                builder: (context, v) {
+                  final state = FocusState.decode(v[0] as String?);
+                  if (state == null) return const SizedBox.shrink();
+                  final tasks = v[1] as List<Task>;
+                  final task = tasks.where((t) => t.id == state.taskId).firstOrNull;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 8),
+                    child: FocusBanner(state: state, task: task, onTap: () => _open(TimeTab.focus)),
+                  );
+                },
+              ),
+            NavigationBar(
+              selectedIndex: _tab.index,
+              onDestinationSelected: (i) => _open(TimeTab.values[i]),
+              destinations: const [
+                NavigationDestination(icon: Icon(Icons.task_alt_outlined), selectedIcon: Icon(Icons.task_alt_rounded), label: 'Задачи'),
+                NavigationDestination(
+                  icon: Icon(Icons.view_timeline_outlined),
+                  selectedIcon: Icon(Icons.view_timeline_rounded),
+                  label: 'День',
+                ),
+                NavigationDestination(icon: Icon(Icons.timer_outlined), selectedIcon: Icon(Icons.timer_rounded), label: 'Фокус'),
+                NavigationDestination(icon: Icon(Icons.insights_outlined), selectedIcon: Icon(Icons.insights_rounded), label: 'Итоги'),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Вкладка «День»: блоки времени по дням недели.
+class DayTab extends StatefulWidget {
+  const DayTab({super.key});
+
+  @override
+  State<DayTab> createState() => _DayTabState();
+}
+
+class _DayTabState extends State<DayTab> {
   var _weekday = DateTime.now().weekday;
 
   @override
   Widget build(BuildContext context) {
     final db = context.db;
     return Watch(
-      streams: () => [db.watchTimeBlocks(), db.watchAllSettings()],
+      streams: () => [db.watchTimeBlocks(), db.watchAllSettings(), db.watchTasks()],
       builder: (context, v) {
         final all = v[0] as List<TimeBlock>;
         final sleepGoals = SleepGoals.from(v[1] as Map<String, String>);
+        final tasks = v[2] as List<Task>;
         final blocks = blocksForWeekday(all, _weekday, sleep: sleepGoals.onToday ? sleepGoals : null);
         final isToday = _weekday == DateTime.now().weekday;
+        final today = isToday ? todayTasks(tasks, todayKey()) : null;
         return ScrollFabScope(
           child: Scaffold(
             appBar: AppBar(title: const Text('План дня')),
@@ -80,7 +170,7 @@ class _DayPlanScreenState extends State<DayPlanScreen> {
                     ],
                   ),
                 ),
-                _SplitCard(blocks: blocks, isToday: isToday),
+                _SplitCard(blocks: blocks, isToday: isToday, today: today),
                 if (blocks.isEmpty)
                   const Card(
                     child: EmptyHint(
@@ -93,7 +183,11 @@ class _DayPlanScreenState extends State<DayPlanScreen> {
                   GroupCard(
                     children: [
                       for (final (i, b) in blocks.indexed) ...[
-                        _BlockTile(block: b, now: isToday && b.contains(_nowMinute())),
+                        _BlockTile(
+                          block: b,
+                          now: isToday && b.contains(_nowMinute()),
+                          tasks: today == null ? 0 : today.open.where((t) => t.kind == b.kind).length,
+                        ),
                         if (gapAfter(blocks, i) case final gap when gap >= 10) _GapTile(start: b.end, minutes: gap),
                       ],
                     ],
@@ -155,9 +249,10 @@ class _DayChip extends StatelessWidget {
 
 /// Распределение суток: полоса на 24 часа и подписи по видам.
 class _SplitCard extends StatelessWidget {
-  const _SplitCard({required this.blocks, required this.isToday});
+  const _SplitCard({required this.blocks, required this.isToday, this.today});
   final List<PlanBlock> blocks;
   final bool isToday;
+  final TodayTasks? today;
 
   @override
   Widget build(BuildContext context) {
@@ -176,6 +271,9 @@ class _SplitCard extends StatelessWidget {
               _NowLine(now: cur.now, next: cur.next),
               const SizedBox(height: 14),
             ],
+            // На работе, в дороге и во сне задачи не подсказываем: только в свободное время и в блоках для дел.
+            if (cur != null && today != null && (cur.now == null || _taskKinds.contains(cur.now!.kind)))
+              if (suggestTask(today!, cur.now?.kind) case final task?) ...[_SuggestLine(task: task), const SizedBox(height: 14)],
             Text('Сутки по плану', style: theme.textTheme.titleSmall?.copyWith(color: muted)),
             const SizedBox(height: 10),
             ClipRRect(
@@ -252,6 +350,45 @@ class _NowLine extends StatelessWidget {
   }
 }
 
+/// «Сейчас лучше всего взяться за…» с кнопкой таймера.
+class _SuggestLine extends StatelessWidget {
+  const _SuggestLine({required this.task});
+  final Task task;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return Material(
+      color: scheme.primaryContainer.withValues(alpha: 0.6),
+      borderRadius: BorderRadius.circular(16),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(16),
+        onTap: () => startFocusOn(context, task),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+          child: Row(
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Лучше всего взяться за', style: TextStyle(fontSize: 12, color: scheme.onPrimaryContainer)),
+                    Text(
+                      task.title,
+                      style: TextStyle(fontWeight: FontWeight.w700, color: scheme.onPrimaryContainer),
+                    ),
+                  ],
+                ),
+              ),
+              Icon(Icons.play_circle_fill_rounded, color: scheme.primary, size: 32),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 class _Legend extends StatelessWidget {
   const _Legend({required this.color, required this.label, required this.minutes});
   final Color color;
@@ -277,9 +414,12 @@ class _Legend extends StatelessWidget {
 }
 
 class _BlockTile extends StatelessWidget {
-  const _BlockTile({required this.block, required this.now});
+  const _BlockTile({required this.block, required this.now, this.tasks = 0});
   final PlanBlock block;
   final bool now;
+
+  /// Сколько несделанных задач на сегодня той же сферы.
+  final int tasks;
 
   @override
   Widget build(BuildContext context) {
@@ -329,7 +469,12 @@ class _BlockTile extends StatelessWidget {
                   children: [
                     Text(b.name, style: theme.textTheme.titleMedium),
                     Text(
-                      [formatDuration(b.minutes), b.kind.label, if (b.source?.remind ?? false) 'с напоминанием'].join(' · '),
+                      [
+                        formatDuration(b.minutes),
+                        b.kind.label,
+                        if (b.source?.remind ?? false) 'с напоминанием',
+                        if (tasks > 0) 'задач: $tasks',
+                      ].join(' · '),
                       style: TextStyle(color: muted, fontSize: 13),
                     ),
                   ],
@@ -543,36 +688,62 @@ class _TimeButton extends StatelessWidget {
   }
 }
 
-/// Карточка на «Сегодня»: что сейчас по плану и что дальше.
+/// Карточка на «Сегодня»: что сейчас по плану, что дальше и сколько задач осталось.
 class DayPlanTodayCard extends StatelessWidget {
   const DayPlanTodayCard({super.key, required this.blocks});
   final List<PlanBlock> blocks;
 
   @override
   Widget build(BuildContext context) {
-    return Every(
-      const Duration(minutes: 1),
-      builder: (context) {
-        final minute = _nowMinute();
-        final cur = currentBlocks(blocks, minute);
-        final n = cur.now;
-        final progress = n == null ? null : ((minute - n.start) % minutesInDay) / n.minutes;
-        return Card(
-          child: InkWell(
-            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DayPlanScreen())),
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
-              child: Column(
-                children: [
-                  _NowLine(now: n, next: cur.next),
-                  if (progress != null) ...[
-                    const SizedBox(height: 10),
-                    ProgressLine(value: progress, color: kindColor(n!.kind), height: 6),
-                  ],
-                ],
+    return StreamBuilder<List<Task>>(
+      stream: context.db.watchTasks(),
+      builder: (context, snap) {
+        final today = todayTasks(snap.data ?? const [], todayKey());
+        return Every(
+          const Duration(minutes: 1),
+          builder: (context) {
+            final minute = _nowMinute();
+            final cur = currentBlocks(blocks, minute);
+            final n = cur.now;
+            final progress = n == null ? null : ((minute - n.start) % minutesInDay) / n.minutes;
+            final next = suggestTask(today, n?.kind);
+            final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+            return Card(
+              child: InkWell(
+                onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const DayPlanScreen(tab: TimeTab.day))),
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _NowLine(now: n, next: cur.next),
+                      if (progress != null) ...[
+                        const SizedBox(height: 10),
+                        ProgressLine(value: progress, color: kindColor(n!.kind), height: 6),
+                      ],
+                      if (today.total > 0) ...[
+                        const SizedBox(height: 10),
+                        Row(
+                          children: [
+                            Icon(Icons.task_alt_rounded, size: 18, color: muted),
+                            const SizedBox(width: 6),
+                            Expanded(
+                              child: Text(
+                                ['Задачи: ${today.done.length} из ${today.total}', if (next != null) 'дальше: ${next.title}'].join(' · '),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: TextStyle(color: muted),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
               ),
-            ),
-          ),
+            );
+          },
         );
       },
     );
