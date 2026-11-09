@@ -3,15 +3,17 @@ library;
 
 import '../data/database.dart';
 import '../data/dates.dart';
+import 'minimum.dart';
 
 /// Цели по сну из настроек.
 class SleepGoals {
-  const SleepGoals({required this.bed, required this.wake, required this.duration, this.remindBefore, this.onToday = false});
+  const SleepGoals({required this.bed, required this.wake, required this.duration, this.minimum, this.remindBefore, this.onToday = false});
 
   factory SleepGoals.from(Map<String, String> s) => SleepGoals(
     bed: int.tryParse(s[keyBed] ?? '') ?? 23 * 60,
     wake: int.tryParse(s[keyWake] ?? '') ?? 7 * 60,
     duration: int.tryParse(s[keyDuration] ?? '') ?? 8 * 60,
+    minimum: int.tryParse(s[keyMinimum] ?? ''),
     remindBefore: int.tryParse(s[keyRemind] ?? ''),
     onToday: s[keyOn] == '1',
   );
@@ -19,6 +21,7 @@ class SleepGoals {
   static const keyBed = 'sleep_bed';
   static const keyWake = 'sleep_wake';
   static const keyDuration = 'sleep_goal';
+  static const keyMinimum = 'sleep_min';
   static const keyRemind = 'sleep_remind';
   static const keyOn = 'sleep_on';
 
@@ -32,6 +35,9 @@ class SleepGoals {
   /// Сколько спать, в минутах.
   final int duration;
 
+  /// Минимум сна, в минутах. Меньше него ночь считается короткой. null: без минимума.
+  final int? minimum;
+
   /// За сколько минут до отбоя напомнить. null: не напоминать.
   final int? remindBefore;
 
@@ -40,6 +46,10 @@ class SleepGoals {
 }
 
 int sleepMinutes(SleepLog l) => l.wakeAt.difference(l.bedAt).inMinutes;
+
+/// Ночь по длительности: норма (с запасом 10 минут), минимум или меньше.
+Level sleepLevel(SleepLog l, SleepGoals g) =>
+    levelOf(sleepMinutes(l).toDouble(), goal: g.duration - 10.0, min: g.minimum?.toDouble() ?? (g.duration - 10.0));
 
 int minutesOfDay(DateTime t) => t.hour * 60 + t.minute;
 
@@ -70,7 +80,13 @@ class SleepStats {
     required this.onTime,
     required this.debt,
     required this.streak,
+    this.full = 0,
+    this.minimum = 0,
   });
+
+  /// Сколько ночей выспался по норме и сколько только по минимуму.
+  final int full;
+  final int minimum;
 
   /// Сколько ночей записано за период.
   final int nights;
@@ -115,6 +131,8 @@ SleepStats sleepStats(Iterable<SleepLog> all, SleepGoals g, {required int from, 
     onTime: logs.where((l) => wentToBedOnTime(l, g.bed)).length,
     debt: logs.fold(0, (a, l) => a + (g.duration - sleepMinutes(l)).clamp(0, 24 * 60)),
     streak: streak,
+    full: logs.where((l) => sleepLevel(l, g) == Level.full).length,
+    minimum: logs.where((l) => sleepLevel(l, g) == Level.minimum).length,
   );
 }
 

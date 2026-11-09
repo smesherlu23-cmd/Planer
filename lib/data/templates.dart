@@ -91,6 +91,9 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       unit: const Value('мин'),
       kind: TrackerKind.duration,
       daysMask: Value(maskFromWeekdays([1, 2, 3, 4, 5, 6])),
+      // Час кода в обычный день, 20 минут в тяжёлый.
+      dailyGoal: const Value(60),
+      dailyMin: const Value(20),
     ),
   );
   final pullups = await db.saveTracker(
@@ -112,12 +115,15 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   await db.setSetting(SleepGoals.keyBed, '${23 * 60}');
   await db.setSetting(SleepGoals.keyWake, '${7 * 60}');
   await db.setSetting(SleepGoals.keyDuration, '${8 * 60}');
+  await db.setSetting(SleepGoals.keyMinimum, '${7 * 60}');
   await db.setSetting(SleepGoals.keyRemind, '30');
   await db.setSetting(SleepGoals.keyOn, '1');
 
   // ----- Питание на набор: около 3000 ккал и 130 г белка -----
   await db.setSetting(FoodGoals.keyKcal, '3000');
   await db.setSetting(FoodGoals.keyProtein, '130');
+  await db.setSetting(FoodGoals.keyKcalMin, '2500');
+  await db.setSetting(FoodGoals.keyProteinMin, '100');
   await db.setSetting(FoodGoals.keyWater, '2000');
   await db.setSetting(FoodGoals.keyGlass, '250');
   await db.setSetting(FoodGoals.keyMode, FoodMode.gain.name);
@@ -239,6 +245,8 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       daysMask: Value(workoutDays),
       reminderMinutes: const Value(18 * 60),
       note: const Value(workoutNote),
+      minSets: const Value(1),
+      minimumText: const Value('Разминка и 15 минут на спину.'),
     ),
   );
   await _exercises(db, a, const [
@@ -254,6 +262,8 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       daysMask: Value(workoutDays),
       reminderMinutes: const Value(18 * 60),
       note: const Value(workoutNote),
+      minSets: const Value(1),
+      minimumText: const Value('Разминка и 15 минут на спину.'),
     ),
   );
   await _exercises(db, b, const [

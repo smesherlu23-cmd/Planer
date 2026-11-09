@@ -4,6 +4,7 @@ library;
 import '../data/database.dart';
 import '../data/dates.dart';
 import 'calc.dart';
+import 'minimum.dart';
 
 enum FoodMode {
   gain('Набор массы'),
@@ -22,6 +23,8 @@ class FoodGoals {
     required this.water,
     required this.glass,
     required this.mode,
+    this.kcalMin,
+    this.proteinMin,
     this.weightTrackerId,
     this.onToday = false,
   });
@@ -32,12 +35,16 @@ class FoodGoals {
     water: int.tryParse(s[keyWater] ?? '') ?? 2000,
     glass: int.tryParse(s[keyGlass] ?? '') ?? 250,
     mode: FoodMode.values.where((m) => m.name == s[keyMode]).firstOrNull ?? FoodMode.keep,
+    kcalMin: double.tryParse(s[keyKcalMin] ?? ''),
+    proteinMin: double.tryParse(s[keyProteinMin] ?? ''),
     weightTrackerId: int.tryParse(s[keyWeight] ?? ''),
     onToday: s[keyOn] == '1',
   );
 
   static const keyKcal = 'food_kcal';
   static const keyProtein = 'food_protein';
+  static const keyKcalMin = 'food_kcal_min';
+  static const keyProteinMin = 'food_protein_min';
   static const keyWater = 'food_water';
   static const keyGlass = 'food_glass';
   static const keyMode = 'food_mode';
@@ -46,6 +53,10 @@ class FoodGoals {
 
   final double kcal;
   final double protein;
+
+  /// Минимум на тяжёлый день. Калорийный минимум бывает только при наборе и поддержании.
+  final double? kcalMin;
+  final double? proteinMin;
 
   /// Вода за день и размер стакана, мл.
   final int water;
@@ -78,6 +89,17 @@ DayFood dayFood(int day, Iterable<Meal> meals, Iterable<WaterLog> water) {
 /// День засчитан, если набрал хотя бы 90% калорий (для набора и поддержания)
 /// или не превысил цель больше чем на 10% (для снижения).
 bool kcalOnTarget(double kcal, FoodGoals g) => g.mode == FoodMode.lose ? kcal > 0 && kcal <= g.kcal * 1.1 : kcal >= g.kcal * 0.9;
+
+/// Уровень дня по калориям и белку. null, если за день ничего не записано.
+Level? foodLevel(DayFood d, FoodGoals g) {
+  if (d.kcal <= 0) return null;
+  final kcalFull = kcalOnTarget(d.kcal, g);
+  final proteinFull = g.protein <= 0 || d.protein >= g.protein * 0.9;
+  if (kcalFull && proteinFull) return Level.full;
+  final kcalOk = kcalFull || (g.mode != FoodMode.lose && g.kcalMin != null && d.kcal >= g.kcalMin!);
+  final proteinOk = proteinFull || (g.proteinMin != null && d.protein >= g.proteinMin!);
+  return kcalOk && proteinOk ? Level.minimum : Level.below;
+}
 
 /// Подсказка по весу за последние недели. null, если записей веса мало.
 ({String text, bool adjust})? weightAdvice(List<(int day, double value)> series, FoodMode mode, {required int today}) {

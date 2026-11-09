@@ -5,6 +5,7 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
+import '../logic/minimum.dart';
 import '../logic/values.dart';
 import 'common.dart';
 import 'theme.dart';
@@ -100,6 +101,8 @@ class _GoalCard extends StatelessWidget {
         forecast = 'Прогноз появится через неделю данных';
       }
     }
+    final minReached =
+        !reached && goalMinimumReached(start: g.startValue, target: g.targetValue, minimum: g.minimumValue, current: current);
     final color = reached ? Accent.habits : Accent.goals;
     final left = g.deadline == null ? null : daysBetween(today, g.deadline!);
     return Card(
@@ -129,7 +132,11 @@ class _GoalCard extends StatelessWidget {
                         Text(g.name, style: theme.textTheme.titleMedium),
                         const SizedBox(height: 2),
                         Text(
-                          current == null ? 'Пока нет данных' : 'сейчас ${_fmt(current)} · цель ${_fmt(g.targetValue)}',
+                          [
+                            current == null ? 'Пока нет данных' : 'сейчас ${_fmt(current)}',
+                            if (current != null) 'цель ${_fmt(g.targetValue)}',
+                            if (g.minimumValue != null) 'минимум ${_fmt(g.minimumValue!)}',
+                          ].join(' · '),
                           style: theme.textTheme.bodyMedium?.copyWith(color: muted),
                         ),
                       ],
@@ -137,13 +144,14 @@ class _GoalCard extends StatelessWidget {
                   ),
                 ],
               ),
-              if (reached || left != null) ...[
+              if (reached || minReached || left != null) ...[
                 const SizedBox(height: 12),
                 Wrap(
                   spacing: 6,
                   runSpacing: 6,
                   children: [
                     if (reached) const Pill('Достигнута', icon: Icons.emoji_events_rounded, color: Accent.habits),
+                    if (minReached) const Pill('Минимум взят', icon: Icons.contrast_rounded, color: Accent.reminders),
                     if (left != null)
                       Pill(
                         'до ${formatDay(g.deadline!, withYear: true)} · ${left >= 0 ? 'осталось $left дн.' : 'срок прошёл'}',
@@ -188,6 +196,9 @@ class _GoalEditScreenState extends State<GoalEditScreen> {
   late int? _fundId = widget.goal?.fundId;
   late final _start = TextEditingController(text: widget.goal == null ? '' : formatNumber(widget.goal!.startValue, maxDecimals: 2));
   late final _target = TextEditingController(text: widget.goal == null ? '' : formatNumber(widget.goal!.targetValue, maxDecimals: 2));
+  late final _minimum = TextEditingController(
+    text: widget.goal?.minimumValue == null ? '' : formatNumber(widget.goal!.minimumValue!, maxDecimals: 2),
+  );
   late int? _deadline = widget.goal?.deadline;
 
   Future<void> _save() async {
@@ -197,6 +208,10 @@ class _GoalEditScreenState extends State<GoalEditScreen> {
     if (_kind == GoalKind.tracker && _trackerId == null) return showSnack(context, 'Выбери трекер');
     if (_kind == GoalKind.fund && _fundId == null) return showSnack(context, 'Выбери копилку или долг');
     if (start == null || target == null) return showSnack(context, 'Укажи старт и цель');
+    final minimum = parseNumber(_minimum.text);
+    if (minimum != null && (minimum - start) * (target - minimum) <= 0) {
+      return showSnack(context, 'Минимум должен быть между стартом и целью');
+    }
     await context.db.saveGoal(
       GoalsCompanion(
         id: widget.goal == null ? const Value.absent() : Value(widget.goal!.id),
@@ -206,6 +221,7 @@ class _GoalEditScreenState extends State<GoalEditScreen> {
         fundId: Value(_kind == GoalKind.fund ? _fundId : null),
         startValue: Value(start),
         targetValue: Value(target),
+        minimumValue: Value(minimum),
         deadline: Value(_deadline),
         startDay: widget.goal == null ? Value(todayKey()) : const Value.absent(),
       ),
@@ -298,6 +314,12 @@ class _GoalEditScreenState extends State<GoalEditScreen> {
                     child: NumberField(controller: _target, label: 'Цель', allowNegative: true),
                   ),
                 ],
+              ),
+              const SizedBox(height: 12),
+              NumberField(controller: _minimum, label: 'Минимум (необязательно)', allowNegative: true),
+              const Padding(
+                padding: EdgeInsets.only(top: 6),
+                child: Text('Результат, который уже можно считать успехом, если до цели не дотянешь. Например, цель 73 кг, минимум 71.'),
               ),
               DayTile(title: 'Срок', day: _deadline, allowClear: true, onChanged: (d) => setState(() => _deadline = d)),
               const SizedBox(height: 16),

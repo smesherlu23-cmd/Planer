@@ -83,6 +83,7 @@ const iconGroups = <(String, List<AppIcon>)>[
       AppIcon('school', Icons.school_rounded, _violet),
       AppIcon('language', Icons.translate_rounded, _cyan),
       AppIcon('work', Icons.work_rounded, _brown),
+      AppIcon('warehouse', Icons.warehouse_rounded, _brown),
       AppIcon('idea', Icons.lightbulb_rounded, _yellow),
       AppIcon('note', Icons.edit_note_rounded, _pink),
       AppIcon('target', Icons.track_changes_rounded, _red),

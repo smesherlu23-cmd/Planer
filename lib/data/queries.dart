@@ -1,5 +1,7 @@
 import 'package:drift/drift.dart';
 
+import '../logic/minimum.dart';
+import '../logic/values.dart';
 import 'database.dart';
 import 'dates.dart';
 
@@ -27,6 +29,26 @@ extension Queries on AppDatabase {
     await (delete(habitLogs)..where((t) => t.habitId.equals(habitId) & t.day.equals(day))).go();
     if (done) {
       await into(habitLogs).insert(HabitLogsCompanion.insert(habitId: habitId, day: day, minimum: Value(minimum)));
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Тяжёлые дни
+  // ---------------------------------------------------------------------------
+
+  Stream<Set<int>> watchHardDays() => select(hardDays).watch().map((rows) => {for (final r in rows) r.day});
+
+  Future<bool> isHardDay(int day) async => await (select(hardDays)..where((t) => t.day.equals(day))).getSingleOrNull() != null;
+
+  Future<List<int>> hardDaysBetween(int from, int to) async => [
+    for (final r in await (select(hardDays)..where((t) => t.day.isBetweenValues(from, to))).get()) r.day,
+  ];
+
+  Future<void> setHardDay(int day, bool hard) async {
+    if (hard) {
+      await into(hardDays).insert(HardDaysCompanion.insert(day: Value(day)), mode: InsertMode.insertOrIgnore);
+    } else {
+      await (delete(hardDays)..where((t) => t.day.equals(day))).go();
     }
   }
 
@@ -68,26 +90,35 @@ extension Queries on AppDatabase {
     );
   }
 
-  /// Записать значение трекера. Привычки, привязанные к трекеру, отмечаются сами.
+  /// Записать значение трекера. Привычки, привязанные к трекеру, отмечаются сами:
+  /// нормой, минимумом или никак, смотря по порогам трекера и по тому, тяжёлый ли день.
   Future<int> addEntry(int trackerId, double value, {int? day, String? note}) {
     final d = day ?? todayKey();
     return transaction(() async {
       final id = await into(trackerEntries)
           .insert(TrackerEntriesCompanion.insert(trackerId: trackerId, day: d, value: value, note: Value(note)));
       final tracker = await (select(trackers)..where((t) => t.id.equals(trackerId))).getSingleOrNull();
-      // У трекера «да или нет» значение 0 значит «не сделал».
-      final counts = tracker != null && (tracker.kind != TrackerKind.yesNo || value > 0);
-      if (counts) {
-        final linked = await (select(habits)..where((t) => t.trackerId.equals(trackerId))).get();
-        for (final h in linked) {
-          await into(habitLogs).insert(
-            HabitLogsCompanion.insert(habitId: h.id, day: d),
-            mode: InsertMode.insertOrIgnore,
-          );
-        }
-      }
+      if (tracker != null) await _markLinkedHabits(tracker, d);
       return id;
     });
+  }
+
+  Future<void> _markLinkedHabits(Tracker tracker, int day) async {
+    final entries = await (select(trackerEntries)..where((t) => t.trackerId.equals(tracker.id) & t.day.equals(day))).get();
+    final value = dayValue(tracker, entries);
+    if (!trackerCounts(tracker, value)) return;
+    final level = trackerLevel(tracker, value);
+    final minimum = level == null ? await isHardDay(day) : level == Level.minimum;
+    final linked = await (select(habits)..where((t) => t.trackerId.equals(tracker.id))).get();
+    for (final h in linked) {
+      final existing = await (select(habitLogs)..where((t) => t.habitId.equals(h.id) & t.day.equals(day))).getSingleOrNull();
+      if (existing == null) {
+        await into(habitLogs).insert(HabitLogsCompanion.insert(habitId: h.id, day: day, minimum: Value(minimum)));
+      } else if (existing.minimum && !minimum) {
+        // Добрал до нормы: отметка становится полной.
+        await (update(habitLogs)..where((t) => t.id.equals(existing.id))).write(const HabitLogsCompanion(minimum: Value(false)));
+      }
+    }
   }
 
   Future<void> updateEntry(int id, {required double value, required int day, String? note}) => (update(
@@ -279,10 +310,24 @@ extension Queries on AppDatabase {
   }
 
   /// Сохранить проведённую тренировку целиком.
-  Future<int> saveSession({required Program program, required int day, required List<SessionSetsCompanion> sets, String? note}) {
+  /// [minimum]: сделано меньше плана.
+  Future<int> saveSession({
+    required Program program,
+    required int day,
+    required List<SessionSetsCompanion> sets,
+    String? note,
+    bool minimum = false,
+  }) {
     return transaction(() async {
-      final id = await into(workoutSessions)
-          .insert(WorkoutSessionsCompanion.insert(programId: Value(program.id), programName: program.name, day: day, note: Value(note)));
+      final id = await into(workoutSessions).insert(
+        WorkoutSessionsCompanion.insert(
+          programId: Value(program.id),
+          programName: program.name,
+          day: day,
+          note: Value(note),
+          minimum: Value(minimum),
+        ),
+      );
       for (final s in sets) {
         await into(sessionSets).insert(s.copyWith(sessionId: Value(id)));
       }

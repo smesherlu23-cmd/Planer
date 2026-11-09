@@ -90,6 +90,7 @@ Future<ImportSummary> importJson(AppDatabase db, String json) async {
     }
     // Файл из старой версии мог хранить эмодзи вместо иконок.
     await db.convertEmojiIcons();
+    await db.moveLegacyHardDay();
   });
   return ImportSummary(counts);
 }

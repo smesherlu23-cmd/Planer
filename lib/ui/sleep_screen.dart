@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
+import '../logic/minimum.dart';
 import '../logic/sleep.dart';
 import 'charts.dart';
 import 'common.dart';
@@ -69,12 +70,14 @@ class SleepScreen extends StatelessWidget {
                           _Stat(label: 'Вовремя', value: week.nights == 0 ? '—' : '${week.onTime} из ${week.nights}'),
                         ],
                       ),
-                      if (week.streak > 0 || week.debt > 0) ...[
+                      if (week.streak > 0 || week.debt > 0 || week.nights > 0) ...[
                         const SizedBox(height: 12),
                         Wrap(
                           spacing: 6,
                           runSpacing: 6,
                           children: [
+                            if (week.nights > 0) Pill('выспался: ${week.full} из ${week.nights}', color: Accent.sleep),
+                            if (goals.minimum != null && week.minimum > 0) Pill('минимум: ${week.minimum}', color: Accent.reminders),
                             if (week.streak > 0)
                               Pill(
                                 '${week.streak} ${_nights(week.streak)} подряд вовремя',
@@ -102,7 +105,9 @@ class SleepScreen extends StatelessWidget {
                         ),
                     ],
                     target: goals.duration / 60,
-                    color: Accent.sleep.withValues(alpha: 0.45),
+                    minimum: goals.minimum == null ? null : goals.minimum! / 60,
+                    color: Accent.sleep.withValues(alpha: 0.3),
+                    minColor: Accent.sleep.withValues(alpha: 0.6),
                     goodColor: Accent.sleep,
                   ),
                 ),
@@ -326,6 +331,23 @@ class _GoalsCard extends StatelessWidget {
             if (m != null) await db.setSetting(SleepGoals.keyDuration, '$m');
           },
         ),
+        ListTile(
+          leading: const ColorIcon(Icons.contrast_rounded, color: Accent.reminders, size: 40),
+          title: const Text('Минимум сна'),
+          subtitle: const Text('Меньше него ночь считается короткой'),
+          trailing: _TimeText(goals.minimum == null ? 'нет' : formatDuration(goals.minimum!)),
+          onTap: () async {
+            final options = [for (var h = 8; h * 30 < goals.duration; h++) h * 30];
+            final m = await _choose(
+              context,
+              'Минимум сна',
+              [0, ...options],
+              goals.minimum ?? 0,
+              (v) => v == 0 ? 'Без минимума' : formatDuration(v),
+            );
+            if (m != null) await db.setSetting(SleepGoals.keyMinimum, m == 0 ? null : '$m');
+          },
+        ),
         SwitchListTile(
           secondary: const ColorIcon(Icons.notifications_active_rounded, color: Accent.reminders, size: 40),
           title: const Text('Напомнить перед отбоем'),
@@ -370,7 +392,7 @@ class _NightTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final l = log;
-    final enough = sleepMinutes(l) >= goals.duration - 15;
+    final level = sleepLevel(l, goals);
     final onTime = wentToBedOnTime(l, goals.bed);
     final muted = Theme.of(context).colorScheme.onSurfaceVariant;
     return ListTile(
@@ -386,7 +408,14 @@ class _NightTile extends StatelessWidget {
       ),
       title: Text(
         formatDuration(sleepMinutes(l)),
-        style: TextStyle(fontWeight: FontWeight.w700, color: enough ? null : Accent.money),
+        style: TextStyle(
+          fontWeight: FontWeight.w700,
+          color: switch (level) {
+            Level.full => null,
+            Level.minimum => Accent.reminders,
+            Level.below => Theme.of(context).colorScheme.error,
+          },
+        ),
       ),
       subtitle: Text.rich(
         TextSpan(

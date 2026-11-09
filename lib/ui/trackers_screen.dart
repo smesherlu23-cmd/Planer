@@ -8,6 +8,7 @@ import '../data/dates.dart';
 import '../data/icon_keys.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
+import '../logic/minimum.dart';
 import '../logic/values.dart';
 import 'charts.dart';
 import 'common.dart';
@@ -145,6 +146,8 @@ class TrackerTodayTile extends StatelessWidget {
     final isDuration = tracker.kind == TrackerKind.duration;
     final theme = Theme.of(context);
     final running = started != null;
+    final level = trackerLevel(tracker, value);
+    final norm = thresholdsLabel(tracker);
     return Card(
       child: InkWell(
         onTap: () => showEntryDialog(context, tracker, day: today),
@@ -164,12 +167,23 @@ class TrackerTodayTile extends StatelessWidget {
                     if (running)
                       _Elapsed(since: DateTime.fromMillisecondsSinceEpoch(started), prefix: 'Таймер идёт · ')
                     else
-                      Text(
-                        value == null ? 'Нажми, чтобы записать' : formatTrackerValue(tracker, value!),
-                        style: value == null
-                            ? TextStyle(color: theme.colorScheme.onSurfaceVariant)
-                            : theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600, color: Accent.trackers),
+                      Text.rich(
+                        TextSpan(
+                          children: [
+                            if (value != null)
+                              TextSpan(
+                                text: formatTrackerValue(tracker, value!),
+                                style: theme.textTheme.bodyLarge?.copyWith(fontWeight: FontWeight.w600, color: Accent.trackers),
+                              )
+                            else
+                              const TextSpan(text: 'Нажми, чтобы записать'),
+                            if (norm != null) TextSpan(text: ' · $norm'),
+                          ],
+                        ),
+                        style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
                       ),
+                    if (level != null && level != Level.full && !running)
+                      Padding(padding: const EdgeInsets.only(top: 6), child: LevelPill(level)),
                   ],
                 ),
               ),
@@ -185,7 +199,7 @@ class TrackerTodayTile extends StatelessWidget {
                 ),
               if (!isDuration || value != null) ...[
                 const SizedBox(width: 6),
-                CheckDot(checked: value != null && !running, color: Accent.habits),
+                CheckDot(checked: trackerCounts(tracker, value) && !running, half: level == Level.minimum, color: Accent.habits),
               ],
             ],
           ),
@@ -193,6 +207,27 @@ class TrackerTodayTile extends StatelessWidget {
       ),
     );
   }
+}
+
+/// «норма 1 ч, минимум 20 мин» или null, если порогов нет.
+String? thresholdsLabel(Tracker t) {
+  if (!trackerHasThresholds(t.kind)) return null;
+  String f(double v) => formatTrackerValue(t, v);
+  final parts = [if (t.dailyGoal != null) 'норма ${f(t.dailyGoal!)}', if (t.dailyMin != null) 'минимум ${f(t.dailyMin!)}'];
+  return parts.isEmpty ? null : parts.join(', ');
+}
+
+/// Плашка уровня: «минимум» или «меньше минимума».
+class LevelPill extends StatelessWidget {
+  const LevelPill(this.level, {super.key});
+  final Level level;
+
+  @override
+  Widget build(BuildContext context) => switch (level) {
+    Level.full => const Pill('норма', icon: Icons.check_rounded, color: Accent.habits),
+    Level.minimum => const Pill('минимум', icon: Icons.contrast_rounded, color: Accent.reminders),
+    Level.below => Pill('меньше минимума', color: Theme.of(context).colorScheme.error),
+  };
 }
 
 Future<void> startTimer(BuildContext context, Tracker t) =>
@@ -404,6 +439,11 @@ class TrackerDetailScreen extends StatelessWidget {
         final chartPoints = series.length > 120 ? series.sublist(series.length - 120) : series;
         final from30 = addDays(todayKey(), -29);
         final summary30 = periodSummary(t, entries.where((e) => e.day >= from30));
+        final levels30 = [
+          for (final (d, v) in series)
+            if (d >= from30) trackerLevel(t, v),
+        ];
+        final hasLevels = levels30.any((l) => l != null);
         final theme = Theme.of(context);
         final muted = theme.colorScheme.onSurfaceVariant;
         final last = series.lastOrNull;
@@ -481,6 +521,23 @@ class TrackerDetailScreen extends StatelessWidget {
                           ],
                         ),
                       ),
+                      if (hasLevels) ...[
+                        const SizedBox(height: 10),
+                        Wrap(
+                          spacing: 6,
+                          runSpacing: 6,
+                          children: [
+                            Pill('норма: ${levels30.where((l) => l == Level.full).length} дн.', color: Accent.habits),
+                            Pill('минимум: ${levels30.where((l) => l == Level.minimum).length} дн.', color: Accent.reminders),
+                            if (levels30.any((l) => l == Level.below))
+                              Pill('меньше: ${levels30.where((l) => l == Level.below).length} дн.'),
+                          ],
+                        ),
+                      ],
+                      if (thresholdsLabel(t) case final norm?) ...[
+                        const SizedBox(height: 8),
+                        Text('За день: $norm', style: TextStyle(color: muted)),
+                      ],
                     ],
                   ),
                 ),
@@ -492,7 +549,7 @@ class TrackerDetailScreen extends StatelessWidget {
                     child: LineChart(
                       points: chartPoints,
                       color: Accent.trackers,
-                      target: goal != null && t.kind != TrackerKind.duration ? goal.targetValue : null,
+                      target: t.kind == TrackerKind.duration ? t.dailyGoal : (goal?.targetValue ?? t.dailyGoal),
                     ),
                   ),
                 ),
@@ -569,12 +626,20 @@ class _TrackerEditScreenState extends State<TrackerEditScreen> {
   late TrackerKind _kind = widget.tracker?.kind ?? TrackerKind.number;
   late int _mask = widget.tracker?.daysMask ?? 0;
   late int? _reminder = widget.tracker?.reminderMinutes;
+  late final _goal = TextEditingController(text: _fmt(widget.tracker?.dailyGoal));
+  late final _min = TextEditingController(text: _fmt(widget.tracker?.dailyMin));
+
+  static String _fmt(double? v) => v == null ? '' : formatNumber(v, maxDecimals: 2);
 
   bool get _isNew => widget.tracker == null;
 
   Future<void> _save() async {
     final name = _name.text.trim();
     if (name.isEmpty) return showSnack(context, 'Введи название');
+    final thresholds = trackerHasThresholds(_kind);
+    final goal = thresholds ? parseNumber(_goal.text) : null;
+    final min = thresholds ? parseNumber(_min.text) : null;
+    if (goal != null && min != null && min > goal) return showSnack(context, 'Минимум не может быть больше нормы');
     final c = TrackersCompanion(
       id: _isNew ? const Value.absent() : Value(widget.tracker!.id),
       name: Value(name),
@@ -583,6 +648,8 @@ class _TrackerEditScreenState extends State<TrackerEditScreen> {
       kind: Value(_kind),
       daysMask: Value(_mask),
       reminderMinutes: Value(_mask == 0 ? null : _reminder),
+      dailyGoal: Value(goal),
+      dailyMin: Value(min),
     );
     await context.db.saveTracker(c);
     if (mounted) Navigator.pop(context);
@@ -630,6 +697,28 @@ class _TrackerEditScreenState extends State<TrackerEditScreen> {
             TextField(
               controller: _unit,
               decoration: const InputDecoration(labelText: 'Единица (кг, км, ELO...)'),
+            ),
+          ],
+          if (trackerHasThresholds(_kind)) ...[
+            const SizedBox(height: 20),
+            Text('Норма и минимум за день', style: Theme.of(context).textTheme.titleSmall),
+            const SizedBox(height: 4),
+            Text(
+              _kind == TrackerKind.duration
+                  ? 'В минутах. Например, норма 60, минимум 20: 20–59 минут засчитаются как минимум, меньше 20 не засчитаются. Можно оставить пустым.'
+                  : 'Например, норма 50, минимум 20. Между ними засчитывается как минимум, меньше минимума не засчитывается. Для веса и рейтинга оставь пустым.',
+            ),
+            const SizedBox(height: 12),
+            Row(
+              children: [
+                Expanded(
+                  child: NumberField(controller: _goal, label: 'Норма', suffix: _kind == TrackerKind.duration ? 'мин' : null),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: NumberField(controller: _min, label: 'Минимум', suffix: _kind == TrackerKind.duration ? 'мин' : null),
+                ),
+              ],
             ),
           ],
           const SizedBox(height: 20),

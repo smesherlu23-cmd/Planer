@@ -531,6 +531,33 @@ class HeroStat extends StatelessWidget {
   }
 }
 
+/// Маленькая белая плашка внутри [HeroCard]: «Минимум набран», «Норма».
+class HeroChip extends StatelessWidget {
+  const HeroChip(this.text, {super.key, this.icon});
+  final String text;
+  final IconData? icon;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.2), borderRadius: BorderRadius.circular(20)),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 14, color: Colors.white), const SizedBox(width: 4)],
+          Flexible(
+            child: Text(
+              text,
+              style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Круглая полупрозрачная кнопка-стрелка внутри [HeroCard].
 class HeroArrow extends StatelessWidget {
   const HeroArrow(this.icon, {super.key, required this.onTap});

@@ -7,6 +7,7 @@ import '../data/icon_keys.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/food.dart';
+import '../logic/minimum.dart';
 import '../logic/values.dart';
 import 'charts.dart';
 import 'common.dart';
@@ -151,7 +152,9 @@ class _FoodScreenState extends State<FoodScreen> {
                             ),
                         ],
                         target: goals.kcal,
-                        color: Accent.food.withValues(alpha: 0.45),
+                        minimum: goals.mode == FoodMode.lose ? null : goals.kcalMin,
+                        color: Accent.food.withValues(alpha: 0.3),
+                        minColor: Accent.food.withValues(alpha: 0.6),
                         goodColor: Accent.food,
                       ),
                       const SizedBox(height: 10),
@@ -160,7 +163,8 @@ class _FoodScreenState extends State<FoodScreen> {
                         child: Text(
                           logged.isEmpty
                               ? 'Цель: ${_kcal(goals.kcal)} и ${_grams(goals.protein)} белка в день'
-                              : 'Норма калорий в ${logged.where((d) => kcalOnTarget(d.kcal, goals)).length} из ${logged.length} дней · '
+                              : 'Норма в ${logged.where((d) => foodLevel(d, goals) == Level.full).length} из ${logged.length} дней'
+                                    '${goals.kcalMin != null || goals.proteinMin != null ? ', минимум в ${logged.where((d) => foodLevel(d, goals) == Level.minimum).length}' : ''} · '
                                     'в среднем ${_kcal(logged.fold<double>(0, (a, d) => a + d.kcal) / logged.length)} '
                                     'и ${_grams(logged.fold<double>(0, (a, d) => a + d.protein) / logged.length)} белка',
                           style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35),
@@ -242,6 +246,16 @@ class _FoodHero extends StatelessWidget {
                       left > 0 ? 'Осталось ${_kcal(left)}' : 'Норма калорий набрана',
                       style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 16),
                     ),
+                    if (foodLevel(totals, goals) case final level? when level != Level.below) ...[
+                      const SizedBox(height: 6),
+                      HeroChip(
+                        level == Level.full ? 'Норма дня' : 'Минимум набран',
+                        icon: level == Level.full ? Icons.check_rounded : Icons.contrast_rounded,
+                      ),
+                    ] else if (goals.kcalMin != null && goals.mode != FoodMode.lose && totals.kcal < goals.kcalMin!) ...[
+                      const SizedBox(height: 4),
+                      Text('Минимум: ${_kcal(goals.kcalMin!)}', style: const TextStyle(color: Colors.white70, fontSize: 12)),
+                    ],
                     const SizedBox(height: 12),
                     _HeroBar(
                       label: 'Белок',
@@ -662,6 +676,8 @@ Future<void> showFoodGoalsSheet(BuildContext context, {required FoodGoals goals,
   final protein = TextEditingController(text: formatNumber(goals.protein, maxDecimals: 0));
   final water = TextEditingController(text: '${goals.water}');
   final glass = TextEditingController(text: '${goals.glass}');
+  final kcalMin = TextEditingController(text: goals.kcalMin == null ? '' : formatNumber(goals.kcalMin!, maxDecimals: 0));
+  final proteinMin = TextEditingController(text: goals.proteinMin == null ? '' : formatNumber(goals.proteinMin!, maxDecimals: 0));
   var mode = goals.mode;
   var weight = goals.weightTrackerId;
   var onToday = goals.onToday;
@@ -690,6 +706,22 @@ Future<void> showFoodGoalsSheet(BuildContext context, {required FoodGoals goals,
               const SizedBox(width: 10),
               Expanded(
                 child: NumberField(controller: protein, label: 'Белок в день', suffix: 'г'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          Text('Минимум на тяжёлый день', style: Theme.of(sheet).textTheme.titleSmall),
+          const SizedBox(height: 8),
+          Row(
+            children: [
+              if (mode != FoodMode.lose) ...[
+                Expanded(
+                  child: NumberField(controller: kcalMin, label: 'Калории', suffix: 'ккал'),
+                ),
+                const SizedBox(width: 10),
+              ],
+              Expanded(
+                child: NumberField(controller: proteinMin, label: 'Белок', suffix: 'г'),
               ),
             ],
           ),
@@ -729,6 +761,9 @@ Future<void> showFoodGoalsSheet(BuildContext context, {required FoodGoals goals,
               if (k == null || k <= 0) return showSnack(sheet, 'Укажи калории');
               await db.setSetting(FoodGoals.keyKcal, '${k.round()}');
               await db.setSetting(FoodGoals.keyProtein, '${(parseNumber(protein.text) ?? 0).round()}');
+              final km = parseNumber(kcalMin.text), pm = parseNumber(proteinMin.text);
+              await db.setSetting(FoodGoals.keyKcalMin, km == null || km <= 0 ? null : '${km.round()}');
+              await db.setSetting(FoodGoals.keyProteinMin, pm == null || pm <= 0 ? null : '${pm.round()}');
               await db.setSetting(FoodGoals.keyWater, '${(parseNumber(water.text) ?? 2000).round()}');
               await db.setSetting(FoodGoals.keyGlass, '${(parseNumber(glass.text) ?? 250).round().clamp(50, 1000)}');
               await db.setSetting(FoodGoals.keyMode, mode.name);

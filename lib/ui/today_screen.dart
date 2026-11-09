@@ -5,6 +5,7 @@ import '../data/dates.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/food.dart';
+import '../logic/minimum.dart';
 import '../logic/sleep.dart';
 import '../logic/values.dart';
 import 'common.dart';
@@ -72,6 +73,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
           db.watchSleep(from: today),
           db.watchMeals(from: today, to: today),
           db.watchWater(from: today, to: today),
+          db.watchHardDays(),
         ],
         builder: (context, v) => _TodayBody(
           today: today,
@@ -85,6 +87,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
           settings: v[7] as Map<String, String>,
           lastNight: (v[8] as List<SleepLog>).firstOrNull,
           food: dayFood(today, v[9] as List<Meal>, v[10] as List<WaterLog>),
+          badDay: (v[11] as Set<int>).contains(today),
         ),
       ),
     );
@@ -104,6 +107,7 @@ class _TodayBody extends StatelessWidget {
     required this.settings,
     required this.lastNight,
     required this.food,
+    required this.badDay,
   });
 
   final int today;
@@ -118,12 +122,14 @@ class _TodayBody extends StatelessWidget {
   final SleepLog? lastNight;
   final DayFood food;
 
+  /// Тяжёлый день: всё, что отмечаешь, сохраняется как минимум.
+  final bool badDay;
+
   @override
   Widget build(BuildContext context) {
     final db = context.db;
     final sleepGoals = SleepGoals.from(settings);
     final foodGoals = FoodGoals.from(settings);
-    final badDay = settings['bad_day'] == '$today';
     final todayHabits = habits.where((h) => maskHasDay(h.daysMask, today)).toList();
     final todayTrackers = trackers.where((t) => maskHasDay(t.daysMask, today)).toList();
     final todayPrograms = programs.where((p) => maskHasDay(p.daysMask, today)).toList();
@@ -137,7 +143,8 @@ class _TodayBody extends StatelessWidget {
     // Сколько дел на сегодня и сколько сделано.
     var total = todayHabits.length + todayTrackers.length;
     var done =
-        todayHabits.where((h) => logsToday.containsKey(h.id)).length + todayTrackers.where((t) => dayValue(t, entriesToday) != null).length;
+        todayHabits.where((h) => logsToday.containsKey(h.id)).length +
+        todayTrackers.where((t) => trackerCounts(t, dayValue(t, entriesToday))).length;
     if (todayPrograms.isNotEmpty) {
       total++;
       if (sessionToday != null) done++;
@@ -152,7 +159,7 @@ class _TodayBody extends StatelessWidget {
     final nothingPlanned =
         todayHabits.isEmpty && todayTrackers.isEmpty && todayPrograms.isEmpty && !sleepGoals.onToday && !foodGoals.onToday;
     final habitsDone = todayHabits.where((h) => logsToday.containsKey(h.id)).length;
-    final trackersDone = todayTrackers.where((t) => dayValue(t, entriesToday) != null).length;
+    final trackersDone = todayTrackers.where((t) => trackerCounts(t, dayValue(t, entriesToday))).length;
     final dark = Theme.of(context).brightness == Brightness.dark;
 
     return ListView(
@@ -198,9 +205,12 @@ class _TodayBody extends StatelessWidget {
             contentPadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
             secondary: const ColorIcon(Icons.battery_alert_rounded, color: Accent.reminders, size: 40),
             title: const Text('Тяжёлый день'),
-            subtitle: const Text('Засчитывается минимум'),
+            subtitle: Text(badDay ? 'Отметки сохраняются как минимум' : 'Засчитывается минимум'),
             value: badDay,
-            onChanged: (on) => db.setSetting('bad_day', on ? '$today' : null),
+            onChanged: (on) async {
+              await db.setHardDay(today, on);
+              if (on && context.mounted) showSnack(context, 'День отмечен как тяжёлый. Всё, что сделаешь, сохранится как минимум');
+            },
           ),
         ),
         if (sleepGoals.onToday || foodGoals.onToday) const SectionTitle('Сон и питание'),
@@ -328,7 +338,7 @@ class _HabitTile extends StatelessWidget {
     return Card(
       child: InkWell(
         onTap: () => db.setHabitDone(habit.id, today, done: !done, minimum: badDay),
-        onLongPress: () => Navigator.push(context, MaterialPageRoute(builder: (_) => HabitDetailScreen(habitId: habit.id))),
+        onLongPress: () => _markSheet(context),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
           child: Row(
@@ -369,6 +379,67 @@ class _HabitTile extends StatelessWidget {
   }
 }
 
+extension on _HabitTile {
+  /// Долгое нажатие: выбрать, как сделано, или открыть привычку.
+  Future<void> _markSheet(BuildContext context) async {
+    final db = context.db;
+    final done = log != null;
+    await showModalBottomSheet<void>(
+      context: context,
+      showDragHandle: true,
+      builder: (sheet) {
+        Widget option(IconData icon, String title, String? subtitle, bool selected, VoidCallback onTap) => ListTile(
+          leading: Icon(icon, color: selected ? Accent.habits : null),
+          title: Text(title),
+          subtitle: subtitle == null ? null : Text(subtitle),
+          trailing: selected ? const Icon(Icons.check_rounded, color: Accent.habits) : null,
+          onTap: () {
+            Navigator.pop(sheet);
+            onTap();
+          },
+        );
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                child: Text(habit.name, style: Theme.of(sheet).textTheme.titleLarge),
+              ),
+              option(
+                Icons.check_circle_rounded,
+                'Сделано полностью',
+                null,
+                done && !log!.minimum,
+                () => db.setHabitDone(habit.id, today, done: true),
+              ),
+              option(
+                Icons.contrast_rounded,
+                'Сделан минимум',
+                habit.minimumText,
+                done && log!.minimum,
+                () => db.setHabitDone(habit.id, today, done: true, minimum: true),
+              ),
+              option(Icons.radio_button_unchecked_rounded, 'Не сделано', null, !done, () => db.setHabitDone(habit.id, today, done: false)),
+              const Divider(),
+              option(
+                Icons.insights_rounded,
+                'Открыть привычку',
+                'История и настройки',
+                false,
+                () => Navigator.push(context, MaterialPageRoute(builder: (_) => HabitDetailScreen(habitId: habit.id))),
+              ),
+              const SizedBox(height: 8),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+String _setsLabel(int n) => n == 1 ? '1 подход' : (n < 5 ? '$n подхода' : '$n подходов');
+
 String _days(int n) {
   final m10 = n % 10, m100 = n % 100;
   if (m10 == 1 && m100 != 11) return 'день';
@@ -389,7 +460,7 @@ class _WorkoutCard extends StatelessWidget {
       return _ActionCard(
         icon: Icons.fitness_center_rounded,
         color: Accent.workouts,
-        title: '${sessionToday!.programName}: сделано',
+        title: '${sessionToday!.programName}: ${sessionToday!.minimum ? 'сделан минимум' : 'сделано'}',
         subtitle: 'Отдых и еда теперь важнее всего',
         done: true,
         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionViewScreen(sessionId: sessionToday!.id))),
@@ -430,11 +501,16 @@ class _WorkoutCard extends StatelessWidget {
               ],
             ),
             if (badDay)
-              Padding(
-                padding: const EdgeInsets.only(top: 10),
+              Container(
+                margin: const EdgeInsets.only(top: 12),
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: Accent.reminders.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
                 child: Text(
-                  'Тяжёлый день: сделай хотя бы разминку и блок для спины.',
-                  style: TextStyle(color: theme.colorScheme.onSurfaceVariant),
+                  [
+                    'Тяжёлый день: хватит облегчённой версии, ${_setsLabel(suggested.minSets ?? 1)} на упражнение.',
+                    ?suggested.minimumText,
+                  ].join(' '),
+                  style: const TextStyle(height: 1.35),
                 ),
               ),
             const SizedBox(height: 14),
@@ -443,16 +519,26 @@ class _WorkoutCard extends StatelessWidget {
                 Expanded(
                   child: FilledButton.icon(
                     style: FilledButton.styleFrom(backgroundColor: Accent.workouts, foregroundColor: Colors.white),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: suggested.id))),
+                    onPressed: () => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SessionScreen(programId: suggested.id, light: badDay),
+                      ),
+                    ),
                     icon: const Icon(Icons.play_arrow_rounded),
-                    label: const Text('Начать'),
+                    label: Text(badDay ? 'Минимум' : 'Начать'),
                   ),
                 ),
                 if (programs.length > 1) ...[
                   const SizedBox(width: 8),
                   PopupMenuButton<Program>(
                     tooltip: 'Другая тренировка',
-                    onSelected: (p) => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: p.id))),
+                    onSelected: (p) => Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => SessionScreen(programId: p.id, light: badDay),
+                      ),
+                    ),
                     itemBuilder: (_) => [
                       for (final p in programs)
                         if (p.id != suggested.id) PopupMenuItem(value: p, child: Text(p.name)),

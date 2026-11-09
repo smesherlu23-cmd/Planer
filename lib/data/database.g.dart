@@ -74,6 +74,24 @@ class $TrackersTable extends Trackers with TableInfo<$TrackersTable, Tracker> {
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _dailyGoalMeta = const VerificationMeta('dailyGoal');
+  @override
+  late final GeneratedColumn<double> dailyGoal = GeneratedColumn<double>(
+    'daily_goal',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _dailyMinMeta = const VerificationMeta('dailyMin');
+  @override
+  late final GeneratedColumn<double> dailyMin = GeneratedColumn<double>(
+    'daily_min',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _archivedMeta = const VerificationMeta('archived');
   @override
   late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
@@ -106,7 +124,20 @@ class $TrackersTable extends Trackers with TableInfo<$TrackersTable, Tracker> {
     defaultValue: currentDateAndTime,
   );
   @override
-  List<GeneratedColumn> get $columns => [id, name, icon, unit, kind, daysMask, reminderMinutes, archived, sortOrder, createdAt];
+  List<GeneratedColumn> get $columns => [
+    id,
+    name,
+    icon,
+    unit,
+    kind,
+    daysMask,
+    reminderMinutes,
+    dailyGoal,
+    dailyMin,
+    archived,
+    sortOrder,
+    createdAt,
+  ];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -136,6 +167,12 @@ class $TrackersTable extends Trackers with TableInfo<$TrackersTable, Tracker> {
     if (data.containsKey('reminder_minutes')) {
       context.handle(_reminderMinutesMeta, reminderMinutes.isAcceptableOrUnknown(data['reminder_minutes']!, _reminderMinutesMeta));
     }
+    if (data.containsKey('daily_goal')) {
+      context.handle(_dailyGoalMeta, dailyGoal.isAcceptableOrUnknown(data['daily_goal']!, _dailyGoalMeta));
+    }
+    if (data.containsKey('daily_min')) {
+      context.handle(_dailyMinMeta, dailyMin.isAcceptableOrUnknown(data['daily_min']!, _dailyMinMeta));
+    }
     if (data.containsKey('archived')) {
       context.handle(_archivedMeta, archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta));
     }
@@ -161,6 +198,8 @@ class $TrackersTable extends Trackers with TableInfo<$TrackersTable, Tracker> {
       kind: $TrackersTable.$converterkind.fromSql(attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}kind'])!),
       daysMask: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}days_mask'])!,
       reminderMinutes: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}reminder_minutes']),
+      dailyGoal: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}daily_goal']),
+      dailyMin: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}daily_min']),
       archived: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}archived'])!,
       sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
       createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
@@ -185,6 +224,10 @@ class Tracker extends DataClass implements Insertable<Tracker> {
   /// В какие дни трекер показывается на экране «Сегодня». 0 = не показывать.
   final int daysMask;
   final int? reminderMinutes;
+
+  /// Норма и минимум за день, для чисел и времени. Без них засчитывается любое значение.
+  final double? dailyGoal;
+  final double? dailyMin;
   final bool archived;
   final int sortOrder;
   final DateTime createdAt;
@@ -196,6 +239,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
     required this.kind,
     required this.daysMask,
     this.reminderMinutes,
+    this.dailyGoal,
+    this.dailyMin,
     required this.archived,
     required this.sortOrder,
     required this.createdAt,
@@ -216,6 +261,12 @@ class Tracker extends DataClass implements Insertable<Tracker> {
     if (!nullToAbsent || reminderMinutes != null) {
       map['reminder_minutes'] = Variable<int>(reminderMinutes);
     }
+    if (!nullToAbsent || dailyGoal != null) {
+      map['daily_goal'] = Variable<double>(dailyGoal);
+    }
+    if (!nullToAbsent || dailyMin != null) {
+      map['daily_min'] = Variable<double>(dailyMin);
+    }
     map['archived'] = Variable<bool>(archived);
     map['sort_order'] = Variable<int>(sortOrder);
     map['created_at'] = Variable<DateTime>(createdAt);
@@ -231,6 +282,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
       kind: Value(kind),
       daysMask: Value(daysMask),
       reminderMinutes: reminderMinutes == null && nullToAbsent ? const Value.absent() : Value(reminderMinutes),
+      dailyGoal: dailyGoal == null && nullToAbsent ? const Value.absent() : Value(dailyGoal),
+      dailyMin: dailyMin == null && nullToAbsent ? const Value.absent() : Value(dailyMin),
       archived: Value(archived),
       sortOrder: Value(sortOrder),
       createdAt: Value(createdAt),
@@ -247,6 +300,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
       kind: $TrackersTable.$converterkind.fromJson(serializer.fromJson<int>(json['kind'])),
       daysMask: serializer.fromJson<int>(json['daysMask']),
       reminderMinutes: serializer.fromJson<int?>(json['reminderMinutes']),
+      dailyGoal: serializer.fromJson<double?>(json['dailyGoal']),
+      dailyMin: serializer.fromJson<double?>(json['dailyMin']),
       archived: serializer.fromJson<bool>(json['archived']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
@@ -263,6 +318,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
       'kind': serializer.toJson<int>($TrackersTable.$converterkind.toJson(kind)),
       'daysMask': serializer.toJson<int>(daysMask),
       'reminderMinutes': serializer.toJson<int?>(reminderMinutes),
+      'dailyGoal': serializer.toJson<double?>(dailyGoal),
+      'dailyMin': serializer.toJson<double?>(dailyMin),
       'archived': serializer.toJson<bool>(archived),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'createdAt': serializer.toJson<DateTime>(createdAt),
@@ -277,6 +334,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
     TrackerKind? kind,
     int? daysMask,
     Value<int?> reminderMinutes = const Value.absent(),
+    Value<double?> dailyGoal = const Value.absent(),
+    Value<double?> dailyMin = const Value.absent(),
     bool? archived,
     int? sortOrder,
     DateTime? createdAt,
@@ -288,6 +347,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
     kind: kind ?? this.kind,
     daysMask: daysMask ?? this.daysMask,
     reminderMinutes: reminderMinutes.present ? reminderMinutes.value : this.reminderMinutes,
+    dailyGoal: dailyGoal.present ? dailyGoal.value : this.dailyGoal,
+    dailyMin: dailyMin.present ? dailyMin.value : this.dailyMin,
     archived: archived ?? this.archived,
     sortOrder: sortOrder ?? this.sortOrder,
     createdAt: createdAt ?? this.createdAt,
@@ -301,6 +362,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
       kind: data.kind.present ? data.kind.value : this.kind,
       daysMask: data.daysMask.present ? data.daysMask.value : this.daysMask,
       reminderMinutes: data.reminderMinutes.present ? data.reminderMinutes.value : this.reminderMinutes,
+      dailyGoal: data.dailyGoal.present ? data.dailyGoal.value : this.dailyGoal,
+      dailyMin: data.dailyMin.present ? data.dailyMin.value : this.dailyMin,
       archived: data.archived.present ? data.archived.value : this.archived,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
@@ -317,6 +380,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
           ..write('kind: $kind, ')
           ..write('daysMask: $daysMask, ')
           ..write('reminderMinutes: $reminderMinutes, ')
+          ..write('dailyGoal: $dailyGoal, ')
+          ..write('dailyMin: $dailyMin, ')
           ..write('archived: $archived, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt')
@@ -325,7 +390,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, icon, unit, kind, daysMask, reminderMinutes, archived, sortOrder, createdAt);
+  int get hashCode =>
+      Object.hash(id, name, icon, unit, kind, daysMask, reminderMinutes, dailyGoal, dailyMin, archived, sortOrder, createdAt);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -337,6 +403,8 @@ class Tracker extends DataClass implements Insertable<Tracker> {
           other.kind == this.kind &&
           other.daysMask == this.daysMask &&
           other.reminderMinutes == this.reminderMinutes &&
+          other.dailyGoal == this.dailyGoal &&
+          other.dailyMin == this.dailyMin &&
           other.archived == this.archived &&
           other.sortOrder == this.sortOrder &&
           other.createdAt == this.createdAt);
@@ -350,6 +418,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
   final Value<TrackerKind> kind;
   final Value<int> daysMask;
   final Value<int?> reminderMinutes;
+  final Value<double?> dailyGoal;
+  final Value<double?> dailyMin;
   final Value<bool> archived;
   final Value<int> sortOrder;
   final Value<DateTime> createdAt;
@@ -361,6 +431,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
     this.kind = const Value.absent(),
     this.daysMask = const Value.absent(),
     this.reminderMinutes = const Value.absent(),
+    this.dailyGoal = const Value.absent(),
+    this.dailyMin = const Value.absent(),
     this.archived = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -373,6 +445,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
     required TrackerKind kind,
     this.daysMask = const Value.absent(),
     this.reminderMinutes = const Value.absent(),
+    this.dailyGoal = const Value.absent(),
+    this.dailyMin = const Value.absent(),
     this.archived = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -386,6 +460,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
     Expression<int>? kind,
     Expression<int>? daysMask,
     Expression<int>? reminderMinutes,
+    Expression<double>? dailyGoal,
+    Expression<double>? dailyMin,
     Expression<bool>? archived,
     Expression<int>? sortOrder,
     Expression<DateTime>? createdAt,
@@ -398,6 +474,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
       if (kind != null) 'kind': kind,
       if (daysMask != null) 'days_mask': daysMask,
       if (reminderMinutes != null) 'reminder_minutes': reminderMinutes,
+      if (dailyGoal != null) 'daily_goal': dailyGoal,
+      if (dailyMin != null) 'daily_min': dailyMin,
       if (archived != null) 'archived': archived,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (createdAt != null) 'created_at': createdAt,
@@ -412,6 +490,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
     Value<TrackerKind>? kind,
     Value<int>? daysMask,
     Value<int?>? reminderMinutes,
+    Value<double?>? dailyGoal,
+    Value<double?>? dailyMin,
     Value<bool>? archived,
     Value<int>? sortOrder,
     Value<DateTime>? createdAt,
@@ -424,6 +504,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
       kind: kind ?? this.kind,
       daysMask: daysMask ?? this.daysMask,
       reminderMinutes: reminderMinutes ?? this.reminderMinutes,
+      dailyGoal: dailyGoal ?? this.dailyGoal,
+      dailyMin: dailyMin ?? this.dailyMin,
       archived: archived ?? this.archived,
       sortOrder: sortOrder ?? this.sortOrder,
       createdAt: createdAt ?? this.createdAt,
@@ -454,6 +536,12 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
     if (reminderMinutes.present) {
       map['reminder_minutes'] = Variable<int>(reminderMinutes.value);
     }
+    if (dailyGoal.present) {
+      map['daily_goal'] = Variable<double>(dailyGoal.value);
+    }
+    if (dailyMin.present) {
+      map['daily_min'] = Variable<double>(dailyMin.value);
+    }
     if (archived.present) {
       map['archived'] = Variable<bool>(archived.value);
     }
@@ -476,6 +564,8 @@ class TrackersCompanion extends UpdateCompanion<Tracker> {
           ..write('kind: $kind, ')
           ..write('daysMask: $daysMask, ')
           ..write('reminderMinutes: $reminderMinutes, ')
+          ..write('dailyGoal: $dailyGoal, ')
+          ..write('dailyMin: $dailyMin, ')
           ..write('archived: $archived, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('createdAt: $createdAt')
@@ -2117,6 +2207,15 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
     type: DriftSqlType.double,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _minimumValueMeta = const VerificationMeta('minimumValue');
+  @override
+  late final GeneratedColumn<double> minimumValue = GeneratedColumn<double>(
+    'minimum_value',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _deadlineMeta = const VerificationMeta('deadline');
   @override
   late final GeneratedColumn<int> deadline = GeneratedColumn<int>(
@@ -2165,6 +2264,7 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
     fundId,
     startValue,
     targetValue,
+    minimumValue,
     deadline,
     startDay,
     archived,
@@ -2203,6 +2303,9 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
     } else if (isInserting) {
       context.missing(_targetValueMeta);
     }
+    if (data.containsKey('minimum_value')) {
+      context.handle(_minimumValueMeta, minimumValue.isAcceptableOrUnknown(data['minimum_value']!, _minimumValueMeta));
+    }
     if (data.containsKey('deadline')) {
       context.handle(_deadlineMeta, deadline.isAcceptableOrUnknown(data['deadline']!, _deadlineMeta));
     }
@@ -2233,6 +2336,7 @@ class $GoalsTable extends Goals with TableInfo<$GoalsTable, Goal> {
       fundId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}fund_id']),
       startValue: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}start_value'])!,
       targetValue: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}target_value'])!,
+      minimumValue: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}minimum_value']),
       deadline: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}deadline']),
       startDay: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}start_day'])!,
       archived: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}archived'])!,
@@ -2257,6 +2361,9 @@ class Goal extends DataClass implements Insertable<Goal> {
   final double startValue;
   final double targetValue;
 
+  /// Минимальный результат, который уже можно считать успехом. Необязательно.
+  final double? minimumValue;
+
   /// Желаемый срок (ключ дня), необязательно.
   final int? deadline;
   final int startDay;
@@ -2270,6 +2377,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     this.fundId,
     required this.startValue,
     required this.targetValue,
+    this.minimumValue,
     this.deadline,
     required this.startDay,
     required this.archived,
@@ -2291,6 +2399,9 @@ class Goal extends DataClass implements Insertable<Goal> {
     }
     map['start_value'] = Variable<double>(startValue);
     map['target_value'] = Variable<double>(targetValue);
+    if (!nullToAbsent || minimumValue != null) {
+      map['minimum_value'] = Variable<double>(minimumValue);
+    }
     if (!nullToAbsent || deadline != null) {
       map['deadline'] = Variable<int>(deadline);
     }
@@ -2309,6 +2420,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       fundId: fundId == null && nullToAbsent ? const Value.absent() : Value(fundId),
       startValue: Value(startValue),
       targetValue: Value(targetValue),
+      minimumValue: minimumValue == null && nullToAbsent ? const Value.absent() : Value(minimumValue),
       deadline: deadline == null && nullToAbsent ? const Value.absent() : Value(deadline),
       startDay: Value(startDay),
       archived: Value(archived),
@@ -2326,6 +2438,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       fundId: serializer.fromJson<int?>(json['fundId']),
       startValue: serializer.fromJson<double>(json['startValue']),
       targetValue: serializer.fromJson<double>(json['targetValue']),
+      minimumValue: serializer.fromJson<double?>(json['minimumValue']),
       deadline: serializer.fromJson<int?>(json['deadline']),
       startDay: serializer.fromJson<int>(json['startDay']),
       archived: serializer.fromJson<bool>(json['archived']),
@@ -2343,6 +2456,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       'fundId': serializer.toJson<int?>(fundId),
       'startValue': serializer.toJson<double>(startValue),
       'targetValue': serializer.toJson<double>(targetValue),
+      'minimumValue': serializer.toJson<double?>(minimumValue),
       'deadline': serializer.toJson<int?>(deadline),
       'startDay': serializer.toJson<int>(startDay),
       'archived': serializer.toJson<bool>(archived),
@@ -2358,6 +2472,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     Value<int?> fundId = const Value.absent(),
     double? startValue,
     double? targetValue,
+    Value<double?> minimumValue = const Value.absent(),
     Value<int?> deadline = const Value.absent(),
     int? startDay,
     bool? archived,
@@ -2370,6 +2485,7 @@ class Goal extends DataClass implements Insertable<Goal> {
     fundId: fundId.present ? fundId.value : this.fundId,
     startValue: startValue ?? this.startValue,
     targetValue: targetValue ?? this.targetValue,
+    minimumValue: minimumValue.present ? minimumValue.value : this.minimumValue,
     deadline: deadline.present ? deadline.value : this.deadline,
     startDay: startDay ?? this.startDay,
     archived: archived ?? this.archived,
@@ -2384,6 +2500,7 @@ class Goal extends DataClass implements Insertable<Goal> {
       fundId: data.fundId.present ? data.fundId.value : this.fundId,
       startValue: data.startValue.present ? data.startValue.value : this.startValue,
       targetValue: data.targetValue.present ? data.targetValue.value : this.targetValue,
+      minimumValue: data.minimumValue.present ? data.minimumValue.value : this.minimumValue,
       deadline: data.deadline.present ? data.deadline.value : this.deadline,
       startDay: data.startDay.present ? data.startDay.value : this.startDay,
       archived: data.archived.present ? data.archived.value : this.archived,
@@ -2401,6 +2518,7 @@ class Goal extends DataClass implements Insertable<Goal> {
           ..write('fundId: $fundId, ')
           ..write('startValue: $startValue, ')
           ..write('targetValue: $targetValue, ')
+          ..write('minimumValue: $minimumValue, ')
           ..write('deadline: $deadline, ')
           ..write('startDay: $startDay, ')
           ..write('archived: $archived, ')
@@ -2410,7 +2528,8 @@ class Goal extends DataClass implements Insertable<Goal> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, kind, trackerId, fundId, startValue, targetValue, deadline, startDay, archived, sortOrder);
+  int get hashCode =>
+      Object.hash(id, name, kind, trackerId, fundId, startValue, targetValue, minimumValue, deadline, startDay, archived, sortOrder);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -2422,6 +2541,7 @@ class Goal extends DataClass implements Insertable<Goal> {
           other.fundId == this.fundId &&
           other.startValue == this.startValue &&
           other.targetValue == this.targetValue &&
+          other.minimumValue == this.minimumValue &&
           other.deadline == this.deadline &&
           other.startDay == this.startDay &&
           other.archived == this.archived &&
@@ -2436,6 +2556,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
   final Value<int?> fundId;
   final Value<double> startValue;
   final Value<double> targetValue;
+  final Value<double?> minimumValue;
   final Value<int?> deadline;
   final Value<int> startDay;
   final Value<bool> archived;
@@ -2448,6 +2569,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     this.fundId = const Value.absent(),
     this.startValue = const Value.absent(),
     this.targetValue = const Value.absent(),
+    this.minimumValue = const Value.absent(),
     this.deadline = const Value.absent(),
     this.startDay = const Value.absent(),
     this.archived = const Value.absent(),
@@ -2461,6 +2583,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     this.fundId = const Value.absent(),
     required double startValue,
     required double targetValue,
+    this.minimumValue = const Value.absent(),
     this.deadline = const Value.absent(),
     required int startDay,
     this.archived = const Value.absent(),
@@ -2478,6 +2601,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     Expression<int>? fundId,
     Expression<double>? startValue,
     Expression<double>? targetValue,
+    Expression<double>? minimumValue,
     Expression<int>? deadline,
     Expression<int>? startDay,
     Expression<bool>? archived,
@@ -2491,6 +2615,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
       if (fundId != null) 'fund_id': fundId,
       if (startValue != null) 'start_value': startValue,
       if (targetValue != null) 'target_value': targetValue,
+      if (minimumValue != null) 'minimum_value': minimumValue,
       if (deadline != null) 'deadline': deadline,
       if (startDay != null) 'start_day': startDay,
       if (archived != null) 'archived': archived,
@@ -2506,6 +2631,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     Value<int?>? fundId,
     Value<double>? startValue,
     Value<double>? targetValue,
+    Value<double?>? minimumValue,
     Value<int?>? deadline,
     Value<int>? startDay,
     Value<bool>? archived,
@@ -2519,6 +2645,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
       fundId: fundId ?? this.fundId,
       startValue: startValue ?? this.startValue,
       targetValue: targetValue ?? this.targetValue,
+      minimumValue: minimumValue ?? this.minimumValue,
       deadline: deadline ?? this.deadline,
       startDay: startDay ?? this.startDay,
       archived: archived ?? this.archived,
@@ -2550,6 +2677,9 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
     if (targetValue.present) {
       map['target_value'] = Variable<double>(targetValue.value);
     }
+    if (minimumValue.present) {
+      map['minimum_value'] = Variable<double>(minimumValue.value);
+    }
     if (deadline.present) {
       map['deadline'] = Variable<int>(deadline.value);
     }
@@ -2575,6 +2705,7 @@ class GoalsCompanion extends UpdateCompanion<Goal> {
           ..write('fundId: $fundId, ')
           ..write('startValue: $startValue, ')
           ..write('targetValue: $targetValue, ')
+          ..write('minimumValue: $minimumValue, ')
           ..write('deadline: $deadline, ')
           ..write('startDay: $startDay, ')
           ..write('archived: $archived, ')
@@ -3656,6 +3787,24 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _minSetsMeta = const VerificationMeta('minSets');
+  @override
+  late final GeneratedColumn<int> minSets = GeneratedColumn<int>(
+    'min_sets',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _minimumTextMeta = const VerificationMeta('minimumText');
+  @override
+  late final GeneratedColumn<String> minimumText = GeneratedColumn<String>(
+    'minimum_text',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _archivedMeta = const VerificationMeta('archived');
   @override
   late final GeneratedColumn<bool> archived = GeneratedColumn<bool>(
@@ -3678,7 +3827,7 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
     defaultValue: const Constant(0),
   );
   @override
-  List<GeneratedColumn> get $columns => [id, name, daysMask, reminderMinutes, note, archived, sortOrder];
+  List<GeneratedColumn> get $columns => [id, name, daysMask, reminderMinutes, note, minSets, minimumText, archived, sortOrder];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -3705,6 +3854,12 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
     if (data.containsKey('note')) {
       context.handle(_noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
     }
+    if (data.containsKey('min_sets')) {
+      context.handle(_minSetsMeta, minSets.isAcceptableOrUnknown(data['min_sets']!, _minSetsMeta));
+    }
+    if (data.containsKey('minimum_text')) {
+      context.handle(_minimumTextMeta, minimumText.isAcceptableOrUnknown(data['minimum_text']!, _minimumTextMeta));
+    }
     if (data.containsKey('archived')) {
       context.handle(_archivedMeta, archived.isAcceptableOrUnknown(data['archived']!, _archivedMeta));
     }
@@ -3725,6 +3880,8 @@ class $ProgramsTable extends Programs with TableInfo<$ProgramsTable, Program> {
       daysMask: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}days_mask'])!,
       reminderMinutes: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}reminder_minutes']),
       note: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}note']),
+      minSets: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}min_sets']),
+      minimumText: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}minimum_text']),
       archived: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}archived'])!,
       sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
     );
@@ -3742,6 +3899,10 @@ class Program extends DataClass implements Insertable<Program> {
   final int daysMask;
   final int? reminderMinutes;
   final String? note;
+
+  /// Минимум на тяжёлый день: сколько подходов на упражнение и что ещё сделать.
+  final int? minSets;
+  final String? minimumText;
   final bool archived;
   final int sortOrder;
   const Program({
@@ -3750,6 +3911,8 @@ class Program extends DataClass implements Insertable<Program> {
     required this.daysMask,
     this.reminderMinutes,
     this.note,
+    this.minSets,
+    this.minimumText,
     required this.archived,
     required this.sortOrder,
   });
@@ -3765,6 +3928,12 @@ class Program extends DataClass implements Insertable<Program> {
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
+    if (!nullToAbsent || minSets != null) {
+      map['min_sets'] = Variable<int>(minSets);
+    }
+    if (!nullToAbsent || minimumText != null) {
+      map['minimum_text'] = Variable<String>(minimumText);
+    }
     map['archived'] = Variable<bool>(archived);
     map['sort_order'] = Variable<int>(sortOrder);
     return map;
@@ -3777,6 +3946,8 @@ class Program extends DataClass implements Insertable<Program> {
       daysMask: Value(daysMask),
       reminderMinutes: reminderMinutes == null && nullToAbsent ? const Value.absent() : Value(reminderMinutes),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      minSets: minSets == null && nullToAbsent ? const Value.absent() : Value(minSets),
+      minimumText: minimumText == null && nullToAbsent ? const Value.absent() : Value(minimumText),
       archived: Value(archived),
       sortOrder: Value(sortOrder),
     );
@@ -3790,6 +3961,8 @@ class Program extends DataClass implements Insertable<Program> {
       daysMask: serializer.fromJson<int>(json['daysMask']),
       reminderMinutes: serializer.fromJson<int?>(json['reminderMinutes']),
       note: serializer.fromJson<String?>(json['note']),
+      minSets: serializer.fromJson<int?>(json['minSets']),
+      minimumText: serializer.fromJson<String?>(json['minimumText']),
       archived: serializer.fromJson<bool>(json['archived']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
     );
@@ -3803,6 +3976,8 @@ class Program extends DataClass implements Insertable<Program> {
       'daysMask': serializer.toJson<int>(daysMask),
       'reminderMinutes': serializer.toJson<int?>(reminderMinutes),
       'note': serializer.toJson<String?>(note),
+      'minSets': serializer.toJson<int?>(minSets),
+      'minimumText': serializer.toJson<String?>(minimumText),
       'archived': serializer.toJson<bool>(archived),
       'sortOrder': serializer.toJson<int>(sortOrder),
     };
@@ -3814,6 +3989,8 @@ class Program extends DataClass implements Insertable<Program> {
     int? daysMask,
     Value<int?> reminderMinutes = const Value.absent(),
     Value<String?> note = const Value.absent(),
+    Value<int?> minSets = const Value.absent(),
+    Value<String?> minimumText = const Value.absent(),
     bool? archived,
     int? sortOrder,
   }) => Program(
@@ -3822,6 +3999,8 @@ class Program extends DataClass implements Insertable<Program> {
     daysMask: daysMask ?? this.daysMask,
     reminderMinutes: reminderMinutes.present ? reminderMinutes.value : this.reminderMinutes,
     note: note.present ? note.value : this.note,
+    minSets: minSets.present ? minSets.value : this.minSets,
+    minimumText: minimumText.present ? minimumText.value : this.minimumText,
     archived: archived ?? this.archived,
     sortOrder: sortOrder ?? this.sortOrder,
   );
@@ -3832,6 +4011,8 @@ class Program extends DataClass implements Insertable<Program> {
       daysMask: data.daysMask.present ? data.daysMask.value : this.daysMask,
       reminderMinutes: data.reminderMinutes.present ? data.reminderMinutes.value : this.reminderMinutes,
       note: data.note.present ? data.note.value : this.note,
+      minSets: data.minSets.present ? data.minSets.value : this.minSets,
+      minimumText: data.minimumText.present ? data.minimumText.value : this.minimumText,
       archived: data.archived.present ? data.archived.value : this.archived,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
     );
@@ -3845,6 +4026,8 @@ class Program extends DataClass implements Insertable<Program> {
           ..write('daysMask: $daysMask, ')
           ..write('reminderMinutes: $reminderMinutes, ')
           ..write('note: $note, ')
+          ..write('minSets: $minSets, ')
+          ..write('minimumText: $minimumText, ')
           ..write('archived: $archived, ')
           ..write('sortOrder: $sortOrder')
           ..write(')'))
@@ -3852,7 +4035,7 @@ class Program extends DataClass implements Insertable<Program> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, daysMask, reminderMinutes, note, archived, sortOrder);
+  int get hashCode => Object.hash(id, name, daysMask, reminderMinutes, note, minSets, minimumText, archived, sortOrder);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -3862,6 +4045,8 @@ class Program extends DataClass implements Insertable<Program> {
           other.daysMask == this.daysMask &&
           other.reminderMinutes == this.reminderMinutes &&
           other.note == this.note &&
+          other.minSets == this.minSets &&
+          other.minimumText == this.minimumText &&
           other.archived == this.archived &&
           other.sortOrder == this.sortOrder);
 }
@@ -3872,6 +4057,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
   final Value<int> daysMask;
   final Value<int?> reminderMinutes;
   final Value<String?> note;
+  final Value<int?> minSets;
+  final Value<String?> minimumText;
   final Value<bool> archived;
   final Value<int> sortOrder;
   const ProgramsCompanion({
@@ -3880,6 +4067,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     this.daysMask = const Value.absent(),
     this.reminderMinutes = const Value.absent(),
     this.note = const Value.absent(),
+    this.minSets = const Value.absent(),
+    this.minimumText = const Value.absent(),
     this.archived = const Value.absent(),
     this.sortOrder = const Value.absent(),
   });
@@ -3889,6 +4078,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     this.daysMask = const Value.absent(),
     this.reminderMinutes = const Value.absent(),
     this.note = const Value.absent(),
+    this.minSets = const Value.absent(),
+    this.minimumText = const Value.absent(),
     this.archived = const Value.absent(),
     this.sortOrder = const Value.absent(),
   }) : name = Value(name);
@@ -3898,6 +4089,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     Expression<int>? daysMask,
     Expression<int>? reminderMinutes,
     Expression<String>? note,
+    Expression<int>? minSets,
+    Expression<String>? minimumText,
     Expression<bool>? archived,
     Expression<int>? sortOrder,
   }) {
@@ -3907,6 +4100,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
       if (daysMask != null) 'days_mask': daysMask,
       if (reminderMinutes != null) 'reminder_minutes': reminderMinutes,
       if (note != null) 'note': note,
+      if (minSets != null) 'min_sets': minSets,
+      if (minimumText != null) 'minimum_text': minimumText,
       if (archived != null) 'archived': archived,
       if (sortOrder != null) 'sort_order': sortOrder,
     });
@@ -3918,6 +4113,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     Value<int>? daysMask,
     Value<int?>? reminderMinutes,
     Value<String?>? note,
+    Value<int?>? minSets,
+    Value<String?>? minimumText,
     Value<bool>? archived,
     Value<int>? sortOrder,
   }) {
@@ -3927,6 +4124,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
       daysMask: daysMask ?? this.daysMask,
       reminderMinutes: reminderMinutes ?? this.reminderMinutes,
       note: note ?? this.note,
+      minSets: minSets ?? this.minSets,
+      minimumText: minimumText ?? this.minimumText,
       archived: archived ?? this.archived,
       sortOrder: sortOrder ?? this.sortOrder,
     );
@@ -3950,6 +4149,12 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (minSets.present) {
+      map['min_sets'] = Variable<int>(minSets.value);
+    }
+    if (minimumText.present) {
+      map['minimum_text'] = Variable<String>(minimumText.value);
+    }
     if (archived.present) {
       map['archived'] = Variable<bool>(archived.value);
     }
@@ -3967,6 +4172,8 @@ class ProgramsCompanion extends UpdateCompanion<Program> {
           ..write('daysMask: $daysMask, ')
           ..write('reminderMinutes: $reminderMinutes, ')
           ..write('note: $note, ')
+          ..write('minSets: $minSets, ')
+          ..write('minimumText: $minimumText, ')
           ..write('archived: $archived, ')
           ..write('sortOrder: $sortOrder')
           ..write(')'))
@@ -4477,8 +4684,19 @@ class $WorkoutSessionsTable extends WorkoutSessions with TableInfo<$WorkoutSessi
     type: DriftSqlType.string,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _minimumMeta = const VerificationMeta('minimum');
   @override
-  List<GeneratedColumn> get $columns => [id, programId, programName, day, at, note];
+  late final GeneratedColumn<bool> minimum = GeneratedColumn<bool>(
+    'minimum',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("minimum" IN (0, 1))'),
+    defaultValue: const Constant(false),
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, programId, programName, day, at, note, minimum];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4510,6 +4728,9 @@ class $WorkoutSessionsTable extends WorkoutSessions with TableInfo<$WorkoutSessi
     if (data.containsKey('note')) {
       context.handle(_noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
     }
+    if (data.containsKey('minimum')) {
+      context.handle(_minimumMeta, minimum.isAcceptableOrUnknown(data['minimum']!, _minimumMeta));
+    }
     return context;
   }
 
@@ -4525,6 +4746,7 @@ class $WorkoutSessionsTable extends WorkoutSessions with TableInfo<$WorkoutSessi
       day: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}day'])!,
       at: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}at'])!,
       note: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}note']),
+      minimum: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}minimum'])!,
     );
   }
 
@@ -4541,7 +4763,18 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
   final int day;
   final DateTime at;
   final String? note;
-  const WorkoutSession({required this.id, this.programId, required this.programName, required this.day, required this.at, this.note});
+
+  /// Сделано меньше плана: облегчённая тренировка.
+  final bool minimum;
+  const WorkoutSession({
+    required this.id,
+    this.programId,
+    required this.programName,
+    required this.day,
+    required this.at,
+    this.note,
+    required this.minimum,
+  });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
@@ -4555,6 +4788,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
     if (!nullToAbsent || note != null) {
       map['note'] = Variable<String>(note);
     }
+    map['minimum'] = Variable<bool>(minimum);
     return map;
   }
 
@@ -4566,6 +4800,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       day: Value(day),
       at: Value(at),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      minimum: Value(minimum),
     );
   }
 
@@ -4578,6 +4813,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       day: serializer.fromJson<int>(json['day']),
       at: serializer.fromJson<DateTime>(json['at']),
       note: serializer.fromJson<String?>(json['note']),
+      minimum: serializer.fromJson<bool>(json['minimum']),
     );
   }
   @override
@@ -4590,6 +4826,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       'day': serializer.toJson<int>(day),
       'at': serializer.toJson<DateTime>(at),
       'note': serializer.toJson<String?>(note),
+      'minimum': serializer.toJson<bool>(minimum),
     };
   }
 
@@ -4600,6 +4837,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
     int? day,
     DateTime? at,
     Value<String?> note = const Value.absent(),
+    bool? minimum,
   }) => WorkoutSession(
     id: id ?? this.id,
     programId: programId.present ? programId.value : this.programId,
@@ -4607,6 +4845,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
     day: day ?? this.day,
     at: at ?? this.at,
     note: note.present ? note.value : this.note,
+    minimum: minimum ?? this.minimum,
   );
   WorkoutSession copyWithCompanion(WorkoutSessionsCompanion data) {
     return WorkoutSession(
@@ -4616,6 +4855,7 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       day: data.day.present ? data.day.value : this.day,
       at: data.at.present ? data.at.value : this.at,
       note: data.note.present ? data.note.value : this.note,
+      minimum: data.minimum.present ? data.minimum.value : this.minimum,
     );
   }
 
@@ -4627,13 +4867,14 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
           ..write('programName: $programName, ')
           ..write('day: $day, ')
           ..write('at: $at, ')
-          ..write('note: $note')
+          ..write('note: $note, ')
+          ..write('minimum: $minimum')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, programId, programName, day, at, note);
+  int get hashCode => Object.hash(id, programId, programName, day, at, note, minimum);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4643,7 +4884,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
           other.programName == this.programName &&
           other.day == this.day &&
           other.at == this.at &&
-          other.note == this.note);
+          other.note == this.note &&
+          other.minimum == this.minimum);
 }
 
 class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
@@ -4653,6 +4895,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
   final Value<int> day;
   final Value<DateTime> at;
   final Value<String?> note;
+  final Value<bool> minimum;
   const WorkoutSessionsCompanion({
     this.id = const Value.absent(),
     this.programId = const Value.absent(),
@@ -4660,6 +4903,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     this.day = const Value.absent(),
     this.at = const Value.absent(),
     this.note = const Value.absent(),
+    this.minimum = const Value.absent(),
   });
   WorkoutSessionsCompanion.insert({
     this.id = const Value.absent(),
@@ -4668,6 +4912,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     required int day,
     this.at = const Value.absent(),
     this.note = const Value.absent(),
+    this.minimum = const Value.absent(),
   }) : programName = Value(programName),
        day = Value(day);
   static Insertable<WorkoutSession> custom({
@@ -4677,6 +4922,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     Expression<int>? day,
     Expression<DateTime>? at,
     Expression<String>? note,
+    Expression<bool>? minimum,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4685,6 +4931,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
       if (day != null) 'day': day,
       if (at != null) 'at': at,
       if (note != null) 'note': note,
+      if (minimum != null) 'minimum': minimum,
     });
   }
 
@@ -4695,6 +4942,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     Value<int>? day,
     Value<DateTime>? at,
     Value<String?>? note,
+    Value<bool>? minimum,
   }) {
     return WorkoutSessionsCompanion(
       id: id ?? this.id,
@@ -4703,6 +4951,7 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
       day: day ?? this.day,
       at: at ?? this.at,
       note: note ?? this.note,
+      minimum: minimum ?? this.minimum,
     );
   }
 
@@ -4727,6 +4976,9 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     if (note.present) {
       map['note'] = Variable<String>(note.value);
     }
+    if (minimum.present) {
+      map['minimum'] = Variable<bool>(minimum.value);
+    }
     return map;
   }
 
@@ -4738,7 +4990,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
           ..write('programName: $programName, ')
           ..write('day: $day, ')
           ..write('at: $at, ')
-          ..write('note: $note')
+          ..write('note: $note, ')
+          ..write('minimum: $minimum')
           ..write(')'))
         .toString();
   }
@@ -7210,6 +7463,860 @@ class WaterLogsCompanion extends UpdateCompanion<WaterLog> {
   }
 }
 
+class $HardDaysTable extends HardDays with TableInfo<$HardDaysTable, HardDay> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $HardDaysTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<int> day = GeneratedColumn<int>(
+    'day',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [day];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'hard_days';
+  @override
+  VerificationContext validateIntegrity(Insertable<HardDay> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('day')) {
+      context.handle(_dayMeta, day.isAcceptableOrUnknown(data['day']!, _dayMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {day};
+  @override
+  HardDay map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return HardDay(day: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}day'])!);
+  }
+
+  @override
+  $HardDaysTable createAlias(String alias) {
+    return $HardDaysTable(attachedDatabase, alias);
+  }
+}
+
+class HardDay extends DataClass implements Insertable<HardDay> {
+  final int day;
+  const HardDay({required this.day});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['day'] = Variable<int>(day);
+    return map;
+  }
+
+  HardDaysCompanion toCompanion(bool nullToAbsent) {
+    return HardDaysCompanion(day: Value(day));
+  }
+
+  factory HardDay.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return HardDay(day: serializer.fromJson<int>(json['day']));
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{'day': serializer.toJson<int>(day)};
+  }
+
+  HardDay copyWith({int? day}) => HardDay(day: day ?? this.day);
+  HardDay copyWithCompanion(HardDaysCompanion data) {
+    return HardDay(day: data.day.present ? data.day.value : this.day);
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HardDay(')
+          ..write('day: $day')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => day.hashCode;
+  @override
+  bool operator ==(Object other) => identical(this, other) || (other is HardDay && other.day == this.day);
+}
+
+class HardDaysCompanion extends UpdateCompanion<HardDay> {
+  final Value<int> day;
+  const HardDaysCompanion({this.day = const Value.absent()});
+  HardDaysCompanion.insert({this.day = const Value.absent()});
+  static Insertable<HardDay> custom({Expression<int>? day}) {
+    return RawValuesInsertable({if (day != null) 'day': day});
+  }
+
+  HardDaysCompanion copyWith({Value<int>? day}) {
+    return HardDaysCompanion(day: day ?? this.day);
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (day.present) {
+      map['day'] = Variable<int>(day.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('HardDaysCompanion(')
+          ..write('day: $day')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $TimeBlocksTable extends TimeBlocks with TableInfo<$TimeBlocksTable, TimeBlock> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TimeBlocksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'),
+  );
+  static const VerificationMeta _nameMeta = const VerificationMeta('name');
+  @override
+  late final GeneratedColumn<String> name = GeneratedColumn<String>(
+    'name',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _iconMeta = const VerificationMeta('icon');
+  @override
+  late final GeneratedColumn<String> icon = GeneratedColumn<String>(
+    'icon',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('clock'),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<BlockKind, int> kind = GeneratedColumn<int>(
+    'kind',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  ).withConverter<BlockKind>($TimeBlocksTable.$converterkind);
+  static const VerificationMeta _startMeta = const VerificationMeta('start');
+  @override
+  late final GeneratedColumn<int> start = GeneratedColumn<int>(
+    'start',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _endMeta = const VerificationMeta('end');
+  @override
+  late final GeneratedColumn<int> end = GeneratedColumn<int>('end', aliasedName, false, type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _daysMaskMeta = const VerificationMeta('daysMask');
+  @override
+  late final GeneratedColumn<int> daysMask = GeneratedColumn<int>(
+    'days_mask',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(everyDay),
+  );
+  static const VerificationMeta _remindMeta = const VerificationMeta('remind');
+  @override
+  late final GeneratedColumn<bool> remind = GeneratedColumn<bool>(
+    'remind',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("remind" IN (0, 1))'),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, name, icon, kind, start, end, daysMask, remind, note];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'time_blocks';
+  @override
+  VerificationContext validateIntegrity(Insertable<TimeBlock> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('name')) {
+      context.handle(_nameMeta, name.isAcceptableOrUnknown(data['name']!, _nameMeta));
+    } else if (isInserting) {
+      context.missing(_nameMeta);
+    }
+    if (data.containsKey('icon')) {
+      context.handle(_iconMeta, icon.isAcceptableOrUnknown(data['icon']!, _iconMeta));
+    }
+    if (data.containsKey('start')) {
+      context.handle(_startMeta, start.isAcceptableOrUnknown(data['start']!, _startMeta));
+    } else if (isInserting) {
+      context.missing(_startMeta);
+    }
+    if (data.containsKey('end')) {
+      context.handle(_endMeta, end.isAcceptableOrUnknown(data['end']!, _endMeta));
+    } else if (isInserting) {
+      context.missing(_endMeta);
+    }
+    if (data.containsKey('days_mask')) {
+      context.handle(_daysMaskMeta, daysMask.isAcceptableOrUnknown(data['days_mask']!, _daysMaskMeta));
+    }
+    if (data.containsKey('remind')) {
+      context.handle(_remindMeta, remind.isAcceptableOrUnknown(data['remind']!, _remindMeta));
+    }
+    if (data.containsKey('note')) {
+      context.handle(_noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  TimeBlock map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return TimeBlock(
+      id: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      name: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}name'])!,
+      icon: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}icon'])!,
+      kind: $TimeBlocksTable.$converterkind.fromSql(attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}kind'])!),
+      start: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}start'])!,
+      end: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}end'])!,
+      daysMask: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}days_mask'])!,
+      remind: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}remind'])!,
+      note: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}note']),
+    );
+  }
+
+  @override
+  $TimeBlocksTable createAlias(String alias) {
+    return $TimeBlocksTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<BlockKind, int, int> $converterkind = const EnumIndexConverter<BlockKind>(BlockKind.values);
+}
+
+class TimeBlock extends DataClass implements Insertable<TimeBlock> {
+  final int id;
+  final String name;
+  final String icon;
+  final BlockKind kind;
+
+  /// Начало и конец в минутах от полуночи. Конец меньше начала: блок через полночь.
+  final int start;
+  final int end;
+  final int daysMask;
+
+  /// Напомнить в начале блока.
+  final bool remind;
+  final String? note;
+  const TimeBlock({
+    required this.id,
+    required this.name,
+    required this.icon,
+    required this.kind,
+    required this.start,
+    required this.end,
+    required this.daysMask,
+    required this.remind,
+    this.note,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['name'] = Variable<String>(name);
+    map['icon'] = Variable<String>(icon);
+    {
+      map['kind'] = Variable<int>($TimeBlocksTable.$converterkind.toSql(kind));
+    }
+    map['start'] = Variable<int>(start);
+    map['end'] = Variable<int>(end);
+    map['days_mask'] = Variable<int>(daysMask);
+    map['remind'] = Variable<bool>(remind);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    return map;
+  }
+
+  TimeBlocksCompanion toCompanion(bool nullToAbsent) {
+    return TimeBlocksCompanion(
+      id: Value(id),
+      name: Value(name),
+      icon: Value(icon),
+      kind: Value(kind),
+      start: Value(start),
+      end: Value(end),
+      daysMask: Value(daysMask),
+      remind: Value(remind),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+    );
+  }
+
+  factory TimeBlock.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return TimeBlock(
+      id: serializer.fromJson<int>(json['id']),
+      name: serializer.fromJson<String>(json['name']),
+      icon: serializer.fromJson<String>(json['icon']),
+      kind: $TimeBlocksTable.$converterkind.fromJson(serializer.fromJson<int>(json['kind'])),
+      start: serializer.fromJson<int>(json['start']),
+      end: serializer.fromJson<int>(json['end']),
+      daysMask: serializer.fromJson<int>(json['daysMask']),
+      remind: serializer.fromJson<bool>(json['remind']),
+      note: serializer.fromJson<String?>(json['note']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'name': serializer.toJson<String>(name),
+      'icon': serializer.toJson<String>(icon),
+      'kind': serializer.toJson<int>($TimeBlocksTable.$converterkind.toJson(kind)),
+      'start': serializer.toJson<int>(start),
+      'end': serializer.toJson<int>(end),
+      'daysMask': serializer.toJson<int>(daysMask),
+      'remind': serializer.toJson<bool>(remind),
+      'note': serializer.toJson<String?>(note),
+    };
+  }
+
+  TimeBlock copyWith({
+    int? id,
+    String? name,
+    String? icon,
+    BlockKind? kind,
+    int? start,
+    int? end,
+    int? daysMask,
+    bool? remind,
+    Value<String?> note = const Value.absent(),
+  }) => TimeBlock(
+    id: id ?? this.id,
+    name: name ?? this.name,
+    icon: icon ?? this.icon,
+    kind: kind ?? this.kind,
+    start: start ?? this.start,
+    end: end ?? this.end,
+    daysMask: daysMask ?? this.daysMask,
+    remind: remind ?? this.remind,
+    note: note.present ? note.value : this.note,
+  );
+  TimeBlock copyWithCompanion(TimeBlocksCompanion data) {
+    return TimeBlock(
+      id: data.id.present ? data.id.value : this.id,
+      name: data.name.present ? data.name.value : this.name,
+      icon: data.icon.present ? data.icon.value : this.icon,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      start: data.start.present ? data.start.value : this.start,
+      end: data.end.present ? data.end.value : this.end,
+      daysMask: data.daysMask.present ? data.daysMask.value : this.daysMask,
+      remind: data.remind.present ? data.remind.value : this.remind,
+      note: data.note.present ? data.note.value : this.note,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TimeBlock(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('icon: $icon, ')
+          ..write('kind: $kind, ')
+          ..write('start: $start, ')
+          ..write('end: $end, ')
+          ..write('daysMask: $daysMask, ')
+          ..write('remind: $remind, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, name, icon, kind, start, end, daysMask, remind, note);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is TimeBlock &&
+          other.id == this.id &&
+          other.name == this.name &&
+          other.icon == this.icon &&
+          other.kind == this.kind &&
+          other.start == this.start &&
+          other.end == this.end &&
+          other.daysMask == this.daysMask &&
+          other.remind == this.remind &&
+          other.note == this.note);
+}
+
+class TimeBlocksCompanion extends UpdateCompanion<TimeBlock> {
+  final Value<int> id;
+  final Value<String> name;
+  final Value<String> icon;
+  final Value<BlockKind> kind;
+  final Value<int> start;
+  final Value<int> end;
+  final Value<int> daysMask;
+  final Value<bool> remind;
+  final Value<String?> note;
+  const TimeBlocksCompanion({
+    this.id = const Value.absent(),
+    this.name = const Value.absent(),
+    this.icon = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.start = const Value.absent(),
+    this.end = const Value.absent(),
+    this.daysMask = const Value.absent(),
+    this.remind = const Value.absent(),
+    this.note = const Value.absent(),
+  });
+  TimeBlocksCompanion.insert({
+    this.id = const Value.absent(),
+    required String name,
+    this.icon = const Value.absent(),
+    required BlockKind kind,
+    required int start,
+    required int end,
+    this.daysMask = const Value.absent(),
+    this.remind = const Value.absent(),
+    this.note = const Value.absent(),
+  }) : name = Value(name),
+       kind = Value(kind),
+       start = Value(start),
+       end = Value(end);
+  static Insertable<TimeBlock> custom({
+    Expression<int>? id,
+    Expression<String>? name,
+    Expression<String>? icon,
+    Expression<int>? kind,
+    Expression<int>? start,
+    Expression<int>? end,
+    Expression<int>? daysMask,
+    Expression<bool>? remind,
+    Expression<String>? note,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (name != null) 'name': name,
+      if (icon != null) 'icon': icon,
+      if (kind != null) 'kind': kind,
+      if (start != null) 'start': start,
+      if (end != null) 'end': end,
+      if (daysMask != null) 'days_mask': daysMask,
+      if (remind != null) 'remind': remind,
+      if (note != null) 'note': note,
+    });
+  }
+
+  TimeBlocksCompanion copyWith({
+    Value<int>? id,
+    Value<String>? name,
+    Value<String>? icon,
+    Value<BlockKind>? kind,
+    Value<int>? start,
+    Value<int>? end,
+    Value<int>? daysMask,
+    Value<bool>? remind,
+    Value<String?>? note,
+  }) {
+    return TimeBlocksCompanion(
+      id: id ?? this.id,
+      name: name ?? this.name,
+      icon: icon ?? this.icon,
+      kind: kind ?? this.kind,
+      start: start ?? this.start,
+      end: end ?? this.end,
+      daysMask: daysMask ?? this.daysMask,
+      remind: remind ?? this.remind,
+      note: note ?? this.note,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (name.present) {
+      map['name'] = Variable<String>(name.value);
+    }
+    if (icon.present) {
+      map['icon'] = Variable<String>(icon.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<int>($TimeBlocksTable.$converterkind.toSql(kind.value));
+    }
+    if (start.present) {
+      map['start'] = Variable<int>(start.value);
+    }
+    if (end.present) {
+      map['end'] = Variable<int>(end.value);
+    }
+    if (daysMask.present) {
+      map['days_mask'] = Variable<int>(daysMask.value);
+    }
+    if (remind.present) {
+      map['remind'] = Variable<bool>(remind.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TimeBlocksCompanion(')
+          ..write('id: $id, ')
+          ..write('name: $name, ')
+          ..write('icon: $icon, ')
+          ..write('kind: $kind, ')
+          ..write('start: $start, ')
+          ..write('end: $end, ')
+          ..write('daysMask: $daysMask, ')
+          ..write('remind: $remind, ')
+          ..write('note: $note')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $BudgetLinesTable extends BudgetLines with TableInfo<$BudgetLinesTable, BudgetLine> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $BudgetLinesTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'),
+  );
+  static const VerificationMeta _monthMeta = const VerificationMeta('month');
+  @override
+  late final GeneratedColumn<int> month = GeneratedColumn<int>(
+    'month',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _categoryIdMeta = const VerificationMeta('categoryId');
+  @override
+  late final GeneratedColumn<int> categoryId = GeneratedColumn<int>(
+    'category_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES categories (id) ON DELETE CASCADE'),
+  );
+  static const VerificationMeta _fundIdMeta = const VerificationMeta('fundId');
+  @override
+  late final GeneratedColumn<int> fundId = GeneratedColumn<int>(
+    'fund_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES funds (id) ON DELETE CASCADE'),
+  );
+  static const VerificationMeta _amountMeta = const VerificationMeta('amount');
+  @override
+  late final GeneratedColumn<double> amount = GeneratedColumn<double>(
+    'amount',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, month, categoryId, fundId, amount];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'budget_lines';
+  @override
+  VerificationContext validateIntegrity(Insertable<BudgetLine> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('month')) {
+      context.handle(_monthMeta, month.isAcceptableOrUnknown(data['month']!, _monthMeta));
+    } else if (isInserting) {
+      context.missing(_monthMeta);
+    }
+    if (data.containsKey('category_id')) {
+      context.handle(_categoryIdMeta, categoryId.isAcceptableOrUnknown(data['category_id']!, _categoryIdMeta));
+    }
+    if (data.containsKey('fund_id')) {
+      context.handle(_fundIdMeta, fundId.isAcceptableOrUnknown(data['fund_id']!, _fundIdMeta));
+    }
+    if (data.containsKey('amount')) {
+      context.handle(_amountMeta, amount.isAcceptableOrUnknown(data['amount']!, _amountMeta));
+    } else if (isInserting) {
+      context.missing(_amountMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  BudgetLine map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return BudgetLine(
+      id: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      month: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}month'])!,
+      categoryId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}category_id']),
+      fundId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}fund_id']),
+      amount: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}amount'])!,
+    );
+  }
+
+  @override
+  $BudgetLinesTable createAlias(String alias) {
+    return $BudgetLinesTable(attachedDatabase, alias);
+  }
+}
+
+class BudgetLine extends DataClass implements Insertable<BudgetLine> {
+  final int id;
+
+  /// Месяц как yyyymm, например 202611.
+  final int month;
+  final int? categoryId;
+  final int? fundId;
+  final double amount;
+  const BudgetLine({required this.id, required this.month, this.categoryId, this.fundId, required this.amount});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['month'] = Variable<int>(month);
+    if (!nullToAbsent || categoryId != null) {
+      map['category_id'] = Variable<int>(categoryId);
+    }
+    if (!nullToAbsent || fundId != null) {
+      map['fund_id'] = Variable<int>(fundId);
+    }
+    map['amount'] = Variable<double>(amount);
+    return map;
+  }
+
+  BudgetLinesCompanion toCompanion(bool nullToAbsent) {
+    return BudgetLinesCompanion(
+      id: Value(id),
+      month: Value(month),
+      categoryId: categoryId == null && nullToAbsent ? const Value.absent() : Value(categoryId),
+      fundId: fundId == null && nullToAbsent ? const Value.absent() : Value(fundId),
+      amount: Value(amount),
+    );
+  }
+
+  factory BudgetLine.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return BudgetLine(
+      id: serializer.fromJson<int>(json['id']),
+      month: serializer.fromJson<int>(json['month']),
+      categoryId: serializer.fromJson<int?>(json['categoryId']),
+      fundId: serializer.fromJson<int?>(json['fundId']),
+      amount: serializer.fromJson<double>(json['amount']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'month': serializer.toJson<int>(month),
+      'categoryId': serializer.toJson<int?>(categoryId),
+      'fundId': serializer.toJson<int?>(fundId),
+      'amount': serializer.toJson<double>(amount),
+    };
+  }
+
+  BudgetLine copyWith({
+    int? id,
+    int? month,
+    Value<int?> categoryId = const Value.absent(),
+    Value<int?> fundId = const Value.absent(),
+    double? amount,
+  }) => BudgetLine(
+    id: id ?? this.id,
+    month: month ?? this.month,
+    categoryId: categoryId.present ? categoryId.value : this.categoryId,
+    fundId: fundId.present ? fundId.value : this.fundId,
+    amount: amount ?? this.amount,
+  );
+  BudgetLine copyWithCompanion(BudgetLinesCompanion data) {
+    return BudgetLine(
+      id: data.id.present ? data.id.value : this.id,
+      month: data.month.present ? data.month.value : this.month,
+      categoryId: data.categoryId.present ? data.categoryId.value : this.categoryId,
+      fundId: data.fundId.present ? data.fundId.value : this.fundId,
+      amount: data.amount.present ? data.amount.value : this.amount,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetLine(')
+          ..write('id: $id, ')
+          ..write('month: $month, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('fundId: $fundId, ')
+          ..write('amount: $amount')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, month, categoryId, fundId, amount);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is BudgetLine &&
+          other.id == this.id &&
+          other.month == this.month &&
+          other.categoryId == this.categoryId &&
+          other.fundId == this.fundId &&
+          other.amount == this.amount);
+}
+
+class BudgetLinesCompanion extends UpdateCompanion<BudgetLine> {
+  final Value<int> id;
+  final Value<int> month;
+  final Value<int?> categoryId;
+  final Value<int?> fundId;
+  final Value<double> amount;
+  const BudgetLinesCompanion({
+    this.id = const Value.absent(),
+    this.month = const Value.absent(),
+    this.categoryId = const Value.absent(),
+    this.fundId = const Value.absent(),
+    this.amount = const Value.absent(),
+  });
+  BudgetLinesCompanion.insert({
+    this.id = const Value.absent(),
+    required int month,
+    this.categoryId = const Value.absent(),
+    this.fundId = const Value.absent(),
+    required double amount,
+  }) : month = Value(month),
+       amount = Value(amount);
+  static Insertable<BudgetLine> custom({
+    Expression<int>? id,
+    Expression<int>? month,
+    Expression<int>? categoryId,
+    Expression<int>? fundId,
+    Expression<double>? amount,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (month != null) 'month': month,
+      if (categoryId != null) 'category_id': categoryId,
+      if (fundId != null) 'fund_id': fundId,
+      if (amount != null) 'amount': amount,
+    });
+  }
+
+  BudgetLinesCompanion copyWith({Value<int>? id, Value<int>? month, Value<int?>? categoryId, Value<int?>? fundId, Value<double>? amount}) {
+    return BudgetLinesCompanion(
+      id: id ?? this.id,
+      month: month ?? this.month,
+      categoryId: categoryId ?? this.categoryId,
+      fundId: fundId ?? this.fundId,
+      amount: amount ?? this.amount,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (month.present) {
+      map['month'] = Variable<int>(month.value);
+    }
+    if (categoryId.present) {
+      map['category_id'] = Variable<int>(categoryId.value);
+    }
+    if (fundId.present) {
+      map['fund_id'] = Variable<int>(fundId.value);
+    }
+    if (amount.present) {
+      map['amount'] = Variable<double>(amount.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('BudgetLinesCompanion(')
+          ..write('id: $id, ')
+          ..write('month: $month, ')
+          ..write('categoryId: $categoryId, ')
+          ..write('fundId: $fundId, ')
+          ..write('amount: $amount')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -7233,6 +8340,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $FoodsTable foods = $FoodsTable(this);
   late final $MealsTable meals = $MealsTable(this);
   late final $WaterLogsTable waterLogs = $WaterLogsTable(this);
+  late final $HardDaysTable hardDays = $HardDaysTable(this);
+  late final $TimeBlocksTable timeBlocks = $TimeBlocksTable(this);
+  late final $BudgetLinesTable budgetLines = $BudgetLinesTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
@@ -7257,6 +8367,9 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     foods,
     meals,
     waterLogs,
+    hardDays,
+    timeBlocks,
+    budgetLines,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -7308,6 +8421,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
       on: TableUpdateQuery.onTableName('foods', limitUpdateKind: UpdateKind.delete),
       result: [TableUpdate('meals', kind: UpdateKind.update)],
     ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName('categories', limitUpdateKind: UpdateKind.delete),
+      result: [TableUpdate('budget_lines', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName('funds', limitUpdateKind: UpdateKind.delete),
+      result: [TableUpdate('budget_lines', kind: UpdateKind.delete)],
+    ),
   ]);
 }
 
@@ -7319,6 +8440,8 @@ typedef $$TrackersTableCreateCompanionBuilder = TrackersCompanion Function({
   required TrackerKind kind,
   Value<int> daysMask,
   Value<int?> reminderMinutes,
+  Value<double?> dailyGoal,
+  Value<double?> dailyMin,
   Value<bool> archived,
   Value<int> sortOrder,
   Value<DateTime> createdAt,
@@ -7331,6 +8454,8 @@ typedef $$TrackersTableUpdateCompanionBuilder = TrackersCompanion Function({
   Value<TrackerKind> kind,
   Value<int> daysMask,
   Value<int?> reminderMinutes,
+  Value<double?> dailyGoal,
+  Value<double?> dailyMin,
   Value<bool> archived,
   Value<int> sortOrder,
   Value<DateTime> createdAt,
@@ -7395,6 +8520,10 @@ class $$TrackersTableFilterComposer extends Composer<_$AppDatabase, $TrackersTab
   ColumnFilters<int> get daysMask => $composableBuilder(column: $table.daysMask, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get reminderMinutes => $composableBuilder(column: $table.reminderMinutes, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get dailyGoal => $composableBuilder(column: $table.dailyGoal, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get dailyMin => $composableBuilder(column: $table.dailyMin, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => ColumnFilters(column));
 
@@ -7477,6 +8606,10 @@ class $$TrackersTableOrderingComposer extends Composer<_$AppDatabase, $TrackersT
   ColumnOrderings<int> get reminderMinutes =>
       $composableBuilder(column: $table.reminderMinutes, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get dailyGoal => $composableBuilder(column: $table.dailyGoal, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get dailyMin => $composableBuilder(column: $table.dailyMin, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
@@ -7505,6 +8638,10 @@ class $$TrackersTableAnnotationComposer extends Composer<_$AppDatabase, $Tracker
   GeneratedColumn<int> get daysMask => $composableBuilder(column: $table.daysMask, builder: (column) => column);
 
   GeneratedColumn<int> get reminderMinutes => $composableBuilder(column: $table.reminderMinutes, builder: (column) => column);
+
+  GeneratedColumn<double> get dailyGoal => $composableBuilder(column: $table.dailyGoal, builder: (column) => column);
+
+  GeneratedColumn<double> get dailyMin => $composableBuilder(column: $table.dailyMin, builder: (column) => column);
 
   GeneratedColumn<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => column);
 
@@ -7597,6 +8734,8 @@ class $$TrackersTableTableManager
                 Value<TrackerKind> kind = const Value.absent(),
                 Value<int> daysMask = const Value.absent(),
                 Value<int?> reminderMinutes = const Value.absent(),
+                Value<double?> dailyGoal = const Value.absent(),
+                Value<double?> dailyMin = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -7608,6 +8747,8 @@ class $$TrackersTableTableManager
                 kind: kind,
                 daysMask: daysMask,
                 reminderMinutes: reminderMinutes,
+                dailyGoal: dailyGoal,
+                dailyMin: dailyMin,
                 archived: archived,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
@@ -7621,6 +8762,8 @@ class $$TrackersTableTableManager
                 required TrackerKind kind,
                 Value<int> daysMask = const Value.absent(),
                 Value<int?> reminderMinutes = const Value.absent(),
+                Value<double?> dailyGoal = const Value.absent(),
+                Value<double?> dailyMin = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
@@ -7632,6 +8775,8 @@ class $$TrackersTableTableManager
                 kind: kind,
                 daysMask: daysMask,
                 reminderMinutes: reminderMinutes,
+                dailyGoal: dailyGoal,
+                dailyMin: dailyMin,
                 archived: archived,
                 sortOrder: sortOrder,
                 createdAt: createdAt,
@@ -8548,6 +9693,16 @@ final class $$FundsTableReferences extends BaseReferences<_$AppDatabase, $FundsT
     final cache = $_typedResult.readTableOrNull(_fundMovesRefsTable($_db));
     return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$BudgetLinesTable, List<BudgetLine>> _budgetLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.budgetLines, aliasName: 'funds__id__budget_lines__fund_id');
+
+  $$BudgetLinesTableProcessedTableManager get budgetLinesRefs {
+    final manager = $$BudgetLinesTableTableManager($_db, $_db.budgetLines).filter((f) => f.fundId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_budgetLinesRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$FundsTableFilterComposer extends Composer<_$AppDatabase, $FundsTable> {
@@ -8607,6 +9762,23 @@ class $$FundsTableFilterComposer extends Composer<_$AppDatabase, $FundsTable> {
       builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$FundMovesTableFilterComposer(
         $db: $db,
         $table: $db.fundMoves,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> budgetLinesRefs(Expression<bool> Function($$BudgetLinesTableFilterComposer f) f) {
+    final $$BudgetLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.budgetLines,
+      getReferencedColumn: (t) => t.fundId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$BudgetLinesTableFilterComposer(
+        $db: $db,
+        $table: $db.budgetLines,
         $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
         joinBuilder: joinBuilder,
         $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
@@ -8712,6 +9884,23 @@ class $$FundsTableAnnotationComposer extends Composer<_$AppDatabase, $FundsTable
     );
     return f(composer);
   }
+
+  Expression<T> budgetLinesRefs<T extends Object>(Expression<T> Function($$BudgetLinesTableAnnotationComposer a) f) {
+    final $$BudgetLinesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.budgetLines,
+      getReferencedColumn: (t) => t.fundId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$BudgetLinesTableAnnotationComposer(
+        $db: $db,
+        $table: $db.budgetLines,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return f(composer);
+  }
 }
 
 class $$FundsTableTableManager
@@ -8727,7 +9916,7 @@ class $$FundsTableTableManager
           $$FundsTableUpdateCompanionBuilder,
           (Fund, $$FundsTableReferences),
           Fund,
-          PrefetchHooks Function({bool goalsRefs, bool fundMovesRefs})
+          PrefetchHooks Function({bool goalsRefs, bool fundMovesRefs, bool budgetLinesRefs})
         > {
   $$FundsTableTableManager(_$AppDatabase db, $FundsTable table)
     : super(
@@ -8791,10 +9980,10 @@ class $$FundsTableTableManager
               ),
           withReferenceMapper: (p0) =>
               p0.map((e) => (e.readTable<$FundsTable, Fund>(table), $$FundsTableReferences(db, table, e))).toList(),
-          prefetchHooksCallback: ({goalsRefs = false, fundMovesRefs = false}) {
+          prefetchHooksCallback: ({goalsRefs = false, fundMovesRefs = false, budgetLinesRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (goalsRefs) db.goals, if (fundMovesRefs) db.fundMoves],
+              explicitlyWatchedTables: [if (goalsRefs) db.goals, if (fundMovesRefs) db.fundMoves, if (budgetLinesRefs) db.budgetLines],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -8812,6 +10001,15 @@ class $$FundsTableTableManager
                       currentTable: table,
                       referencedTable: $$FundsTableReferences._fundMovesRefsTable(db),
                       managerFromTypedResult: (p0) => $$FundsTableReferences(db, table, p0).fundMovesRefs,
+                      currentColumn: 'id',
+                      referencedColumn: 'fund_id',
+                      typedResults: items,
+                    ),
+                  if (budgetLinesRefs)
+                    await $_getPrefetchedDataByColumns<Fund, $FundsTable, BudgetLine, $BudgetLinesTable>(
+                      currentTable: table,
+                      referencedTable: $$FundsTableReferences._budgetLinesRefsTable(db),
+                      managerFromTypedResult: (p0) => $$FundsTableReferences(db, table, p0).budgetLinesRefs,
                       currentColumn: 'id',
                       referencedColumn: 'fund_id',
                       typedResults: items,
@@ -8836,7 +10034,7 @@ typedef $$FundsTableProcessedTableManager =
       $$FundsTableUpdateCompanionBuilder,
       (Fund, $$FundsTableReferences),
       Fund,
-      PrefetchHooks Function({bool goalsRefs, bool fundMovesRefs})
+      PrefetchHooks Function({bool goalsRefs, bool fundMovesRefs, bool budgetLinesRefs})
     >;
 typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
   Value<int> id,
@@ -8846,6 +10044,7 @@ typedef $$GoalsTableCreateCompanionBuilder = GoalsCompanion Function({
   Value<int?> fundId,
   required double startValue,
   required double targetValue,
+  Value<double?> minimumValue,
   Value<int?> deadline,
   required int startDay,
   Value<bool> archived,
@@ -8859,6 +10058,7 @@ typedef $$GoalsTableUpdateCompanionBuilder = GoalsCompanion Function({
   Value<int?> fundId,
   Value<double> startValue,
   Value<double> targetValue,
+  Value<double?> minimumValue,
   Value<int?> deadline,
   Value<int> startDay,
   Value<bool> archived,
@@ -8909,6 +10109,8 @@ class $$GoalsTableFilterComposer extends Composer<_$AppDatabase, $GoalsTable> {
   ColumnFilters<double> get startValue => $composableBuilder(column: $table.startValue, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get targetValue => $composableBuilder(column: $table.targetValue, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get minimumValue => $composableBuilder(column: $table.minimumValue, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get deadline => $composableBuilder(column: $table.deadline, builder: (column) => ColumnFilters(column));
 
@@ -8971,6 +10173,8 @@ class $$GoalsTableOrderingComposer extends Composer<_$AppDatabase, $GoalsTable> 
 
   ColumnOrderings<double> get targetValue => $composableBuilder(column: $table.targetValue, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get minimumValue => $composableBuilder(column: $table.minimumValue, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get deadline => $composableBuilder(column: $table.deadline, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get startDay => $composableBuilder(column: $table.startDay, builder: (column) => ColumnOrderings(column));
@@ -9031,6 +10235,8 @@ class $$GoalsTableAnnotationComposer extends Composer<_$AppDatabase, $GoalsTable
   GeneratedColumn<double> get startValue => $composableBuilder(column: $table.startValue, builder: (column) => column);
 
   GeneratedColumn<double> get targetValue => $composableBuilder(column: $table.targetValue, builder: (column) => column);
+
+  GeneratedColumn<double> get minimumValue => $composableBuilder(column: $table.minimumValue, builder: (column) => column);
 
   GeneratedColumn<int> get deadline => $composableBuilder(column: $table.deadline, builder: (column) => column);
 
@@ -9107,6 +10313,7 @@ class $$GoalsTableTableManager
                 Value<int?> fundId = const Value.absent(),
                 Value<double> startValue = const Value.absent(),
                 Value<double> targetValue = const Value.absent(),
+                Value<double?> minimumValue = const Value.absent(),
                 Value<int?> deadline = const Value.absent(),
                 Value<int> startDay = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
@@ -9119,6 +10326,7 @@ class $$GoalsTableTableManager
                 fundId: fundId,
                 startValue: startValue,
                 targetValue: targetValue,
+                minimumValue: minimumValue,
                 deadline: deadline,
                 startDay: startDay,
                 archived: archived,
@@ -9133,6 +10341,7 @@ class $$GoalsTableTableManager
                 Value<int?> fundId = const Value.absent(),
                 required double startValue,
                 required double targetValue,
+                Value<double?> minimumValue = const Value.absent(),
                 Value<int?> deadline = const Value.absent(),
                 required int startDay,
                 Value<bool> archived = const Value.absent(),
@@ -9145,6 +10354,7 @@ class $$GoalsTableTableManager
                 fundId: fundId,
                 startValue: startValue,
                 targetValue: targetValue,
+                minimumValue: minimumValue,
                 deadline: deadline,
                 startDay: startDay,
                 archived: archived,
@@ -9248,6 +10458,19 @@ final class $$CategoriesTableReferences extends BaseReferences<_$AppDatabase, $C
     final cache = $_typedResult.readTableOrNull(_transactionsRefsTable($_db));
     return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
   }
+
+  static MultiTypedResultKey<$BudgetLinesTable, List<BudgetLine>> _budgetLinesRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.budgetLines, aliasName: 'categories__id__budget_lines__category_id');
+
+  $$BudgetLinesTableProcessedTableManager get budgetLinesRefs {
+    final manager = $$BudgetLinesTableTableManager(
+      $_db,
+      $_db.budgetLines,
+    ).filter((f) => f.categoryId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_budgetLinesRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
 }
 
 class $$CategoriesTableFilterComposer extends Composer<_$AppDatabase, $CategoriesTable> {
@@ -9281,6 +10504,23 @@ class $$CategoriesTableFilterComposer extends Composer<_$AppDatabase, $Categorie
       builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TransactionsTableFilterComposer(
         $db: $db,
         $table: $db.transactions,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return f(composer);
+  }
+
+  Expression<bool> budgetLinesRefs(Expression<bool> Function($$BudgetLinesTableFilterComposer f) f) {
+    final $$BudgetLinesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.budgetLines,
+      getReferencedColumn: (t) => t.categoryId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$BudgetLinesTableFilterComposer(
+        $db: $db,
+        $table: $db.budgetLines,
         $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
         joinBuilder: joinBuilder,
         $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
@@ -9351,6 +10591,23 @@ class $$CategoriesTableAnnotationComposer extends Composer<_$AppDatabase, $Categ
     );
     return f(composer);
   }
+
+  Expression<T> budgetLinesRefs<T extends Object>(Expression<T> Function($$BudgetLinesTableAnnotationComposer a) f) {
+    final $$BudgetLinesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.budgetLines,
+      getReferencedColumn: (t) => t.categoryId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$BudgetLinesTableAnnotationComposer(
+        $db: $db,
+        $table: $db.budgetLines,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return f(composer);
+  }
 }
 
 class $$CategoriesTableTableManager
@@ -9366,7 +10623,7 @@ class $$CategoriesTableTableManager
           $$CategoriesTableUpdateCompanionBuilder,
           (Category, $$CategoriesTableReferences),
           Category,
-          PrefetchHooks Function({bool transactionsRefs})
+          PrefetchHooks Function({bool transactionsRefs, bool budgetLinesRefs})
         > {
   $$CategoriesTableTableManager(_$AppDatabase db, $CategoriesTable table)
     : super(
@@ -9414,10 +10671,10 @@ class $$CategoriesTableTableManager
               ),
           withReferenceMapper: (p0) =>
               p0.map((e) => (e.readTable<$CategoriesTable, Category>(table), $$CategoriesTableReferences(db, table, e))).toList(),
-          prefetchHooksCallback: ({transactionsRefs = false}) {
+          prefetchHooksCallback: ({transactionsRefs = false, budgetLinesRefs = false}) {
             return PrefetchHooks(
               db: db,
-              explicitlyWatchedTables: [if (transactionsRefs) db.transactions],
+              explicitlyWatchedTables: [if (transactionsRefs) db.transactions, if (budgetLinesRefs) db.budgetLines],
               addJoins: null,
               getPrefetchedDataCallback: (items) async {
                 return [
@@ -9426,6 +10683,15 @@ class $$CategoriesTableTableManager
                       currentTable: table,
                       referencedTable: $$CategoriesTableReferences._transactionsRefsTable(db),
                       managerFromTypedResult: (p0) => $$CategoriesTableReferences(db, table, p0).transactionsRefs,
+                      currentColumn: 'id',
+                      referencedColumn: 'category_id',
+                      typedResults: items,
+                    ),
+                  if (budgetLinesRefs)
+                    await $_getPrefetchedDataByColumns<Category, $CategoriesTable, BudgetLine, $BudgetLinesTable>(
+                      currentTable: table,
+                      referencedTable: $$CategoriesTableReferences._budgetLinesRefsTable(db),
+                      managerFromTypedResult: (p0) => $$CategoriesTableReferences(db, table, p0).budgetLinesRefs,
                       currentColumn: 'id',
                       referencedColumn: 'category_id',
                       typedResults: items,
@@ -9450,7 +10716,7 @@ typedef $$CategoriesTableProcessedTableManager =
       $$CategoriesTableUpdateCompanionBuilder,
       (Category, $$CategoriesTableReferences),
       Category,
-      PrefetchHooks Function({bool transactionsRefs})
+      PrefetchHooks Function({bool transactionsRefs, bool budgetLinesRefs})
     >;
 typedef $$TransactionsTableCreateCompanionBuilder = TransactionsCompanion Function({
   Value<int> id,
@@ -9937,6 +11203,8 @@ typedef $$ProgramsTableCreateCompanionBuilder = ProgramsCompanion Function({
   Value<int> daysMask,
   Value<int?> reminderMinutes,
   Value<String?> note,
+  Value<int?> minSets,
+  Value<String?> minimumText,
   Value<bool> archived,
   Value<int> sortOrder,
 });
@@ -9946,6 +11214,8 @@ typedef $$ProgramsTableUpdateCompanionBuilder = ProgramsCompanion Function({
   Value<int> daysMask,
   Value<int?> reminderMinutes,
   Value<String?> note,
+  Value<int?> minSets,
+  Value<String?> minimumText,
   Value<bool> archived,
   Value<int> sortOrder,
 });
@@ -9997,6 +11267,10 @@ class $$ProgramsTableFilterComposer extends Composer<_$AppDatabase, $ProgramsTab
   ColumnFilters<int> get reminderMinutes => $composableBuilder(column: $table.reminderMinutes, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get minSets => $composableBuilder(column: $table.minSets, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get minimumText => $composableBuilder(column: $table.minimumText, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => ColumnFilters(column));
 
@@ -10056,6 +11330,10 @@ class $$ProgramsTableOrderingComposer extends Composer<_$AppDatabase, $ProgramsT
 
   ColumnOrderings<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get minSets => $composableBuilder(column: $table.minSets, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get minimumText => $composableBuilder(column: $table.minimumText, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
@@ -10078,6 +11356,10 @@ class $$ProgramsTableAnnotationComposer extends Composer<_$AppDatabase, $Program
   GeneratedColumn<int> get reminderMinutes => $composableBuilder(column: $table.reminderMinutes, builder: (column) => column);
 
   GeneratedColumn<String> get note => $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get minSets => $composableBuilder(column: $table.minSets, builder: (column) => column);
+
+  GeneratedColumn<String> get minimumText => $composableBuilder(column: $table.minimumText, builder: (column) => column);
 
   GeneratedColumn<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => column);
 
@@ -10150,6 +11432,8 @@ class $$ProgramsTableTableManager
                 Value<int> daysMask = const Value.absent(),
                 Value<int?> reminderMinutes = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<int?> minSets = const Value.absent(),
+                Value<String?> minimumText = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
               }) => ProgramsCompanion(
@@ -10158,6 +11442,8 @@ class $$ProgramsTableTableManager
                 daysMask: daysMask,
                 reminderMinutes: reminderMinutes,
                 note: note,
+                minSets: minSets,
+                minimumText: minimumText,
                 archived: archived,
                 sortOrder: sortOrder,
               ),
@@ -10168,6 +11454,8 @@ class $$ProgramsTableTableManager
                 Value<int> daysMask = const Value.absent(),
                 Value<int?> reminderMinutes = const Value.absent(),
                 Value<String?> note = const Value.absent(),
+                Value<int?> minSets = const Value.absent(),
+                Value<String?> minimumText = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
               }) => ProgramsCompanion.insert(
@@ -10176,6 +11464,8 @@ class $$ProgramsTableTableManager
                 daysMask: daysMask,
                 reminderMinutes: reminderMinutes,
                 note: note,
+                minSets: minSets,
+                minimumText: minimumText,
                 archived: archived,
                 sortOrder: sortOrder,
               ),
@@ -10580,6 +11870,7 @@ typedef $$WorkoutSessionsTableCreateCompanionBuilder = WorkoutSessionsCompanion 
   required int day,
   Value<DateTime> at,
   Value<String?> note,
+  Value<bool> minimum,
 });
 typedef $$WorkoutSessionsTableUpdateCompanionBuilder = WorkoutSessionsCompanion Function({
   Value<int> id,
@@ -10588,6 +11879,7 @@ typedef $$WorkoutSessionsTableUpdateCompanionBuilder = WorkoutSessionsCompanion 
   Value<int> day,
   Value<DateTime> at,
   Value<String?> note,
+  Value<bool> minimum,
 });
 
 final class $$WorkoutSessionsTableReferences extends BaseReferences<_$AppDatabase, $WorkoutSessionsTable, WorkoutSession> {
@@ -10635,6 +11927,8 @@ class $$WorkoutSessionsTableFilterComposer extends Composer<_$AppDatabase, $Work
   ColumnFilters<DateTime> get at => $composableBuilder(column: $table.at, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get minimum => $composableBuilder(column: $table.minimum, builder: (column) => ColumnFilters(column));
 
   $$ProgramsTableFilterComposer get programId {
     final $$ProgramsTableFilterComposer composer = $composerBuilder(
@@ -10689,6 +11983,8 @@ class $$WorkoutSessionsTableOrderingComposer extends Composer<_$AppDatabase, $Wo
 
   ColumnOrderings<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<bool> get minimum => $composableBuilder(column: $table.minimum, builder: (column) => ColumnOrderings(column));
+
   $$ProgramsTableOrderingComposer get programId {
     final $$ProgramsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -10724,6 +12020,8 @@ class $$WorkoutSessionsTableAnnotationComposer extends Composer<_$AppDatabase, $
   GeneratedColumn<DateTime> get at => $composableBuilder(column: $table.at, builder: (column) => column);
 
   GeneratedColumn<String> get note => $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<bool> get minimum => $composableBuilder(column: $table.minimum, builder: (column) => column);
 
   $$ProgramsTableAnnotationComposer get programId {
     final $$ProgramsTableAnnotationComposer composer = $composerBuilder(
@@ -10783,22 +12081,42 @@ class $$WorkoutSessionsTableTableManager
           createFilteringComposer: () => $$WorkoutSessionsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$WorkoutSessionsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () => $$WorkoutSessionsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<int?> programId = const Value.absent(),
-            Value<String> programName = const Value.absent(),
-            Value<int> day = const Value.absent(),
-            Value<DateTime> at = const Value.absent(),
-            Value<String?> note = const Value.absent(),
-          }) => WorkoutSessionsCompanion(id: id, programId: programId, programName: programName, day: day, at: at, note: note),
-          createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<int?> programId = const Value.absent(),
-            required String programName,
-            required int day,
-            Value<DateTime> at = const Value.absent(),
-            Value<String?> note = const Value.absent(),
-          }) => WorkoutSessionsCompanion.insert(id: id, programId: programId, programName: programName, day: day, at: at, note: note),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> programId = const Value.absent(),
+                Value<String> programName = const Value.absent(),
+                Value<int> day = const Value.absent(),
+                Value<DateTime> at = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<bool> minimum = const Value.absent(),
+              }) => WorkoutSessionsCompanion(
+                id: id,
+                programId: programId,
+                programName: programName,
+                day: day,
+                at: at,
+                note: note,
+                minimum: minimum,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int?> programId = const Value.absent(),
+                required String programName,
+                required int day,
+                Value<DateTime> at = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<bool> minimum = const Value.absent(),
+              }) => WorkoutSessionsCompanion.insert(
+                id: id,
+                programId: programId,
+                programName: programName,
+                day: day,
+                at: at,
+                note: note,
+                minimum: minimum,
+              ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable<$WorkoutSessionsTable, WorkoutSession>(table), $$WorkoutSessionsTableReferences(db, table, e)))
               .toList(),
@@ -12334,6 +13652,579 @@ typedef $$WaterLogsTableProcessedTableManager =
       WaterLog,
       PrefetchHooks Function()
     >;
+typedef $$HardDaysTableCreateCompanionBuilder = HardDaysCompanion Function({Value<int> day});
+typedef $$HardDaysTableUpdateCompanionBuilder = HardDaysCompanion Function({Value<int> day});
+
+class $$HardDaysTableFilterComposer extends Composer<_$AppDatabase, $HardDaysTable> {
+  $$HardDaysTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get day => $composableBuilder(column: $table.day, builder: (column) => ColumnFilters(column));
+}
+
+class $$HardDaysTableOrderingComposer extends Composer<_$AppDatabase, $HardDaysTable> {
+  $$HardDaysTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get day => $composableBuilder(column: $table.day, builder: (column) => ColumnOrderings(column));
+}
+
+class $$HardDaysTableAnnotationComposer extends Composer<_$AppDatabase, $HardDaysTable> {
+  $$HardDaysTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get day => $composableBuilder(column: $table.day, builder: (column) => column);
+}
+
+class $$HardDaysTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $HardDaysTable,
+          HardDay,
+          $$HardDaysTableFilterComposer,
+          $$HardDaysTableOrderingComposer,
+          $$HardDaysTableAnnotationComposer,
+          $$HardDaysTableCreateCompanionBuilder,
+          $$HardDaysTableUpdateCompanionBuilder,
+          (HardDay, BaseReferences<_$AppDatabase, $HardDaysTable, HardDay>),
+          HardDay,
+          PrefetchHooks Function()
+        > {
+  $$HardDaysTableTableManager(_$AppDatabase db, $HardDaysTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$HardDaysTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$HardDaysTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$HardDaysTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({Value<int> day = const Value.absent()}) => HardDaysCompanion(day: day),
+          createCompanionCallback: ({Value<int> day = const Value.absent()}) => HardDaysCompanion.insert(day: day),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (e.readTable<$HardDaysTable, HardDay>(table), BaseReferences<_$AppDatabase, $HardDaysTable, HardDay>(db, table, e)),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$HardDaysTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $HardDaysTable,
+      HardDay,
+      $$HardDaysTableFilterComposer,
+      $$HardDaysTableOrderingComposer,
+      $$HardDaysTableAnnotationComposer,
+      $$HardDaysTableCreateCompanionBuilder,
+      $$HardDaysTableUpdateCompanionBuilder,
+      (HardDay, BaseReferences<_$AppDatabase, $HardDaysTable, HardDay>),
+      HardDay,
+      PrefetchHooks Function()
+    >;
+typedef $$TimeBlocksTableCreateCompanionBuilder = TimeBlocksCompanion Function({
+  Value<int> id,
+  required String name,
+  Value<String> icon,
+  required BlockKind kind,
+  required int start,
+  required int end,
+  Value<int> daysMask,
+  Value<bool> remind,
+  Value<String?> note,
+});
+typedef $$TimeBlocksTableUpdateCompanionBuilder = TimeBlocksCompanion Function({
+  Value<int> id,
+  Value<String> name,
+  Value<String> icon,
+  Value<BlockKind> kind,
+  Value<int> start,
+  Value<int> end,
+  Value<int> daysMask,
+  Value<bool> remind,
+  Value<String?> note,
+});
+
+class $$TimeBlocksTableFilterComposer extends Composer<_$AppDatabase, $TimeBlocksTable> {
+  $$TimeBlocksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get icon => $composableBuilder(column: $table.icon, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<BlockKind, BlockKind, int> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<int> get start => $composableBuilder(column: $table.start, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get end => $composableBuilder(column: $table.end, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get daysMask => $composableBuilder(column: $table.daysMask, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get remind => $composableBuilder(column: $table.remind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnFilters(column));
+}
+
+class $$TimeBlocksTableOrderingComposer extends Composer<_$AppDatabase, $TimeBlocksTable> {
+  $$TimeBlocksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get name => $composableBuilder(column: $table.name, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get icon => $composableBuilder(column: $table.icon, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get kind => $composableBuilder(column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get start => $composableBuilder(column: $table.start, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get end => $composableBuilder(column: $table.end, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get daysMask => $composableBuilder(column: $table.daysMask, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get remind => $composableBuilder(column: $table.remind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnOrderings(column));
+}
+
+class $$TimeBlocksTableAnnotationComposer extends Composer<_$AppDatabase, $TimeBlocksTable> {
+  $$TimeBlocksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id => $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get name => $composableBuilder(column: $table.name, builder: (column) => column);
+
+  GeneratedColumn<String> get icon => $composableBuilder(column: $table.icon, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<BlockKind, int> get kind => $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumn<int> get start => $composableBuilder(column: $table.start, builder: (column) => column);
+
+  GeneratedColumn<int> get end => $composableBuilder(column: $table.end, builder: (column) => column);
+
+  GeneratedColumn<int> get daysMask => $composableBuilder(column: $table.daysMask, builder: (column) => column);
+
+  GeneratedColumn<bool> get remind => $composableBuilder(column: $table.remind, builder: (column) => column);
+
+  GeneratedColumn<String> get note => $composableBuilder(column: $table.note, builder: (column) => column);
+}
+
+class $$TimeBlocksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TimeBlocksTable,
+          TimeBlock,
+          $$TimeBlocksTableFilterComposer,
+          $$TimeBlocksTableOrderingComposer,
+          $$TimeBlocksTableAnnotationComposer,
+          $$TimeBlocksTableCreateCompanionBuilder,
+          $$TimeBlocksTableUpdateCompanionBuilder,
+          (TimeBlock, BaseReferences<_$AppDatabase, $TimeBlocksTable, TimeBlock>),
+          TimeBlock,
+          PrefetchHooks Function()
+        > {
+  $$TimeBlocksTableTableManager(_$AppDatabase db, $TimeBlocksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$TimeBlocksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$TimeBlocksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$TimeBlocksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<BlockKind> kind = const Value.absent(),
+                Value<int> start = const Value.absent(),
+                Value<int> end = const Value.absent(),
+                Value<int> daysMask = const Value.absent(),
+                Value<bool> remind = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+              }) => TimeBlocksCompanion(
+                id: id,
+                name: name,
+                icon: icon,
+                kind: kind,
+                start: start,
+                end: end,
+                daysMask: daysMask,
+                remind: remind,
+                note: note,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String name,
+                Value<String> icon = const Value.absent(),
+                required BlockKind kind,
+                required int start,
+                required int end,
+                Value<int> daysMask = const Value.absent(),
+                Value<bool> remind = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+              }) => TimeBlocksCompanion.insert(
+                id: id,
+                name: name,
+                icon: icon,
+                kind: kind,
+                start: start,
+                end: end,
+                daysMask: daysMask,
+                remind: remind,
+                note: note,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map(
+                (e) => (
+                  e.readTable<$TimeBlocksTable, TimeBlock>(table),
+                  BaseReferences<_$AppDatabase, $TimeBlocksTable, TimeBlock>(db, table, e),
+                ),
+              )
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$TimeBlocksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TimeBlocksTable,
+      TimeBlock,
+      $$TimeBlocksTableFilterComposer,
+      $$TimeBlocksTableOrderingComposer,
+      $$TimeBlocksTableAnnotationComposer,
+      $$TimeBlocksTableCreateCompanionBuilder,
+      $$TimeBlocksTableUpdateCompanionBuilder,
+      (TimeBlock, BaseReferences<_$AppDatabase, $TimeBlocksTable, TimeBlock>),
+      TimeBlock,
+      PrefetchHooks Function()
+    >;
+typedef $$BudgetLinesTableCreateCompanionBuilder = BudgetLinesCompanion Function({
+  Value<int> id,
+  required int month,
+  Value<int?> categoryId,
+  Value<int?> fundId,
+  required double amount,
+});
+typedef $$BudgetLinesTableUpdateCompanionBuilder = BudgetLinesCompanion Function({
+  Value<int> id,
+  Value<int> month,
+  Value<int?> categoryId,
+  Value<int?> fundId,
+  Value<double> amount,
+});
+
+final class $$BudgetLinesTableReferences extends BaseReferences<_$AppDatabase, $BudgetLinesTable, BudgetLine> {
+  $$BudgetLinesTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $CategoriesTable _categoryIdTable(_$AppDatabase db) => db.categories.createAlias('budget_lines__category_id__categories__id');
+
+  $$CategoriesTableProcessedTableManager? get categoryId {
+    final $_column = $_itemColumn<int>('category_id');
+    if ($_column == null) return null;
+    final manager = $$CategoriesTableTableManager($_db, $_db.categories).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_categoryIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static $FundsTable _fundIdTable(_$AppDatabase db) => db.funds.createAlias('budget_lines__fund_id__funds__id');
+
+  $$FundsTableProcessedTableManager? get fundId {
+    final $_column = $_itemColumn<int>('fund_id');
+    if ($_column == null) return null;
+    final manager = $$FundsTableTableManager($_db, $_db.funds).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_fundIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$BudgetLinesTableFilterComposer extends Composer<_$AppDatabase, $BudgetLinesTable> {
+  $$BudgetLinesTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get month => $composableBuilder(column: $table.month, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get amount => $composableBuilder(column: $table.amount, builder: (column) => ColumnFilters(column));
+
+  $$CategoriesTableFilterComposer get categoryId {
+    final $$CategoriesTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$CategoriesTableFilterComposer(
+        $db: $db,
+        $table: $db.categories,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+
+  $$FundsTableFilterComposer get fundId {
+    final $$FundsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundId,
+      referencedTable: $db.funds,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$FundsTableFilterComposer(
+        $db: $db,
+        $table: $db.funds,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$BudgetLinesTableOrderingComposer extends Composer<_$AppDatabase, $BudgetLinesTable> {
+  $$BudgetLinesTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get month => $composableBuilder(column: $table.month, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get amount => $composableBuilder(column: $table.amount, builder: (column) => ColumnOrderings(column));
+
+  $$CategoriesTableOrderingComposer get categoryId {
+    final $$CategoriesTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$CategoriesTableOrderingComposer(
+        $db: $db,
+        $table: $db.categories,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+
+  $$FundsTableOrderingComposer get fundId {
+    final $$FundsTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundId,
+      referencedTable: $db.funds,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$FundsTableOrderingComposer(
+        $db: $db,
+        $table: $db.funds,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$BudgetLinesTableAnnotationComposer extends Composer<_$AppDatabase, $BudgetLinesTable> {
+  $$BudgetLinesTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id => $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get month => $composableBuilder(column: $table.month, builder: (column) => column);
+
+  GeneratedColumn<double> get amount => $composableBuilder(column: $table.amount, builder: (column) => column);
+
+  $$CategoriesTableAnnotationComposer get categoryId {
+    final $$CategoriesTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.categoryId,
+      referencedTable: $db.categories,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$CategoriesTableAnnotationComposer(
+        $db: $db,
+        $table: $db.categories,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+
+  $$FundsTableAnnotationComposer get fundId {
+    final $$FundsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.fundId,
+      referencedTable: $db.funds,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$FundsTableAnnotationComposer(
+        $db: $db,
+        $table: $db.funds,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$BudgetLinesTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $BudgetLinesTable,
+          BudgetLine,
+          $$BudgetLinesTableFilterComposer,
+          $$BudgetLinesTableOrderingComposer,
+          $$BudgetLinesTableAnnotationComposer,
+          $$BudgetLinesTableCreateCompanionBuilder,
+          $$BudgetLinesTableUpdateCompanionBuilder,
+          (BudgetLine, $$BudgetLinesTableReferences),
+          BudgetLine,
+          PrefetchHooks Function({bool categoryId, bool fundId})
+        > {
+  $$BudgetLinesTableTableManager(_$AppDatabase db, $BudgetLinesTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$BudgetLinesTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$BudgetLinesTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$BudgetLinesTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> month = const Value.absent(),
+            Value<int?> categoryId = const Value.absent(),
+            Value<int?> fundId = const Value.absent(),
+            Value<double> amount = const Value.absent(),
+          }) => BudgetLinesCompanion(id: id, month: month, categoryId: categoryId, fundId: fundId, amount: amount),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int month,
+            Value<int?> categoryId = const Value.absent(),
+            Value<int?> fundId = const Value.absent(),
+            required double amount,
+          }) => BudgetLinesCompanion.insert(id: id, month: month, categoryId: categoryId, fundId: fundId, amount: amount),
+          withReferenceMapper: (p0) =>
+              p0.map((e) => (e.readTable<$BudgetLinesTable, BudgetLine>(table), $$BudgetLinesTableReferences(db, table, e))).toList(),
+          prefetchHooksCallback: ({categoryId = false, fundId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (categoryId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.categoryId,
+                        referencedTable: $$BudgetLinesTableReferences._categoryIdTable(db),
+                        referencedColumn: $$BudgetLinesTableReferences._categoryIdTable(db).id,
+                      ) as T;
+                    }
+                    if (fundId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.fundId,
+                        referencedTable: $$BudgetLinesTableReferences._fundIdTable(db),
+                        referencedColumn: $$BudgetLinesTableReferences._fundIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$BudgetLinesTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $BudgetLinesTable,
+      BudgetLine,
+      $$BudgetLinesTableFilterComposer,
+      $$BudgetLinesTableOrderingComposer,
+      $$BudgetLinesTableAnnotationComposer,
+      $$BudgetLinesTableCreateCompanionBuilder,
+      $$BudgetLinesTableUpdateCompanionBuilder,
+      (BudgetLine, $$BudgetLinesTableReferences),
+      BudgetLine,
+      PrefetchHooks Function({bool categoryId, bool fundId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -12358,4 +14249,7 @@ class $AppDatabaseManager {
   $$FoodsTableTableManager get foods => $$FoodsTableTableManager(_db, _db.foods);
   $$MealsTableTableManager get meals => $$MealsTableTableManager(_db, _db.meals);
   $$WaterLogsTableTableManager get waterLogs => $$WaterLogsTableTableManager(_db, _db.waterLogs);
+  $$HardDaysTableTableManager get hardDays => $$HardDaysTableTableManager(_db, _db.hardDays);
+  $$TimeBlocksTableTableManager get timeBlocks => $$TimeBlocksTableTableManager(_db, _db.timeBlocks);
+  $$BudgetLinesTableTableManager get budgetLines => $$BudgetLinesTableTableManager(_db, _db.budgetLines);
 }

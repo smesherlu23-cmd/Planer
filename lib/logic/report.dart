@@ -6,6 +6,7 @@ import '../data/dates.dart';
 import '../data/queries.dart';
 import 'calc.dart';
 import 'food.dart';
+import 'minimum.dart';
 import 'sleep.dart';
 import 'values.dart';
 
@@ -32,11 +33,21 @@ class SleepWeek {
 
 /// Питание за неделю: средние за дни с записями.
 class FoodWeek {
-  FoodWeek({required this.days, required this.avgKcal, required this.avgProtein, required this.onTarget, required this.goals});
+  FoodWeek({
+    required this.days,
+    required this.avgKcal,
+    required this.avgProtein,
+    required this.onTarget,
+    required this.goals,
+    this.minimum = 0,
+  });
   final int days;
   final double avgKcal;
   final double avgProtein;
+
+  /// Дней по норме и дней только с минимумом.
   final int onTarget;
+  final int minimum;
   final FoodGoals goals;
 }
 
@@ -58,7 +69,15 @@ class WeekReport {
     required this.moodAvg,
     required this.dayNotes,
     required this.review,
+    this.hardDays = 0,
+    this.workoutsMinimum = 0,
   });
+
+  /// Сколько дней недели отмечено как тяжёлые.
+  final int hardDays;
+
+  /// Сколько тренировок сделано облегчённо.
+  final int workoutsMinimum;
 
   final int from;
   final int to;
@@ -84,6 +103,7 @@ class WeekReport {
   String toText() {
     final b = StringBuffer();
     b.writeln('Planer: неделя ${formatDay(from)} – ${formatDay(to, withYear: true)}');
+    if (hardDays > 0) b.writeln('Тяжёлых дней: $hardDays');
     if (habits.isNotEmpty) {
       b.writeln();
       b.writeln('Привычки: $habitsDone из $habitsPlanned');
@@ -101,7 +121,10 @@ class WeekReport {
     }
     if (workoutsPlanned > 0 || workoutsDone > 0) {
       b.writeln();
-      b.writeln('Тренировки: $workoutsDone из $workoutsPlanned${workoutNames.isEmpty ? '' : ' (${workoutNames.join(', ')})'}');
+      b.writeln(
+        'Тренировки: $workoutsDone из $workoutsPlanned${workoutsMinimum > 0 ? ', из них облегчённых $workoutsMinimum' : ''}'
+        '${workoutNames.isEmpty ? '' : ' (${workoutNames.join(', ')})'}',
+      );
     }
     if (expenses > 0 || income > 0 || fundMoves.isNotEmpty) {
       b.writeln();
@@ -119,7 +142,8 @@ class WeekReport {
       b.writeln();
       b.writeln(
         'Сон: записано ночей ${sl.stats.nights}, в среднем ${formatDuration(sl.stats.avgDuration!)}, '
-        'отбой в среднем ${formatMinutes(sl.stats.avgBed!)}, вовремя ${sl.stats.onTime} из ${sl.stats.nights}',
+        'отбой в среднем ${formatMinutes(sl.stats.avgBed!)}, вовремя ${sl.stats.onTime} из ${sl.stats.nights}, '
+        'выспался ${sl.stats.full} из ${sl.stats.nights}${sl.stats.minimum > 0 ? ', минимум ${sl.stats.minimum}' : ''}',
       );
     }
     final fd = food;
@@ -128,7 +152,7 @@ class WeekReport {
       b.writeln(
         'Питание: в среднем ${formatNumber(fd.avgKcal, maxDecimals: 0)} ккал и ${formatNumber(fd.avgProtein, maxDecimals: 0)} г белка в день '
         '(цель ${formatNumber(fd.goals.kcal, maxDecimals: 0)} ккал и ${formatNumber(fd.goals.protein, maxDecimals: 0)} г), '
-        'норма калорий в ${fd.onTarget} из ${fd.days} дней',
+        'норма в ${fd.onTarget} из ${fd.days} дней${fd.minimum > 0 ? ', минимум в ${fd.minimum}' : ''}',
       );
     }
     if (dayNotes > 0) {
@@ -179,6 +203,12 @@ Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) asy
       } else {
         label = formatTrackerValue(tr, last);
       }
+    }
+    final levels = [for (final (_, v) in dailySeries(tr, own)) trackerLevel(tr, v)];
+    if (levels.any((l) => l != null)) {
+      final full = levels.where((l) => l == Level.full).length;
+      final min = levels.where((l) => l == Level.minimum).length;
+      label += '; норма $full дн.${min > 0 ? ', минимум $min дн.' : ''}';
     }
     trackerWeeks.add(TrackerWeek(tr, label));
   }
@@ -232,7 +262,8 @@ Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) asy
             days: totals.length,
             avgKcal: totals.fold<double>(0, (a, x) => a + x.kcal) / totals.length,
             avgProtein: totals.fold<double>(0, (a, x) => a + x.protein) / totals.length,
-            onTarget: totals.where((x) => kcalOnTarget(x.kcal, foodGoals)).length,
+            onTarget: totals.where((x) => foodLevel(x, foodGoals) == Level.full).length,
+            minimum: totals.where((x) => foodLevel(x, foodGoals) == Level.minimum).length,
             goals: foodGoals,
           ),
     from: from,
@@ -240,6 +271,8 @@ Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) asy
     habits: habitWeeks,
     trackers: trackerWeeks,
     workoutsDone: sessions.length,
+    workoutsMinimum: sessions.where((s) => s.minimum).length,
+    hardDays: (await db.hardDaysBetween(from, until)).length,
     workoutsPlanned: planned,
     workoutNames: [for (final s in sessions..sort((a, b) => a.day.compareTo(b.day))) s.programName],
     expenses: txs.where((x) => !x.isIncome).fold(0, (a, x) => a + x.amount),

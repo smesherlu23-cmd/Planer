@@ -6,6 +6,7 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
+import '../logic/minimum.dart';
 import 'common.dart';
 import 'theme.dart';
 
@@ -87,10 +88,12 @@ class WorkoutsScreen extends StatelessWidget {
                   children: [
                     for (final s in sessions.take(30))
                       ListTile(
-                        leading: const IconBadge(Icons.check_rounded, color: Accent.habits, soft: true),
+                        leading: s.minimum
+                            ? const IconBadge(Icons.contrast_rounded, color: Accent.reminders, soft: true)
+                            : const IconBadge(Icons.check_rounded, color: Accent.habits, soft: true),
                         title: Text(s.programName),
                         subtitle: Text(_capitalize(dayLabel(s.day))),
-                        trailing: const Icon(Icons.chevron_right_rounded),
+                        trailing: s.minimum ? const Pill('минимум', color: Accent.reminders) : const Icon(Icons.chevron_right_rounded),
                         onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionViewScreen(sessionId: s.id))),
                       ),
                   ],
@@ -416,6 +419,8 @@ class ProgramEditScreen extends StatefulWidget {
 class _ProgramEditScreenState extends State<ProgramEditScreen> {
   late final _name = TextEditingController(text: widget.program?.name ?? '');
   late final _note = TextEditingController(text: widget.program?.note ?? '');
+  late final _minSets = TextEditingController(text: '${widget.program?.minSets ?? 1}');
+  late final _minimum = TextEditingController(text: widget.program?.minimumText ?? '');
   late int _mask = widget.program?.daysMask ?? 0;
   late int? _reminder = widget.program?.reminderMinutes;
 
@@ -428,6 +433,8 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
         daysMask: Value(_mask),
         reminderMinutes: Value(_mask == 0 ? null : _reminder),
         note: Value(emptyToNull(_note.text)),
+        minSets: Value(int.tryParse(_minSets.text.trim())?.clamp(1, 20)),
+        minimumText: Value(emptyToNull(_minimum.text)),
       ),
     );
     if (!mounted) return;
@@ -467,6 +474,32 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
             decoration: const InputDecoration(labelText: 'Заметка: разминка, правила'),
           ),
           const SizedBox(height: 20),
+          Text('Минимум на тяжёлый день', style: Theme.of(context).textTheme.titleSmall),
+          const SizedBox(height: 4),
+          const Text('Облегчённая версия: меньше подходов. Она тоже засчитывается, но отмечается как минимум.'),
+          const SizedBox(height: 12),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SizedBox(
+                width: 120,
+                child: TextField(
+                  controller: _minSets,
+                  keyboardType: TextInputType.number,
+                  inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  decoration: const InputDecoration(labelText: 'Подходов'),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: TextField(
+                  controller: _minimum,
+                  decoration: const InputDecoration(labelText: 'Что ещё сделать', hintText: 'Разминка и спина'),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
           FilledButton(onPressed: _save, child: const Text('Сохранить')),
           if (p != null) ...[
             const SizedBox(height: 24),
@@ -501,16 +534,19 @@ class _ProgramEditScreenState extends State<ProgramEditScreen> {
 // ---------------------------------------------------------------------------
 
 class SessionScreen extends StatefulWidget {
-  const SessionScreen({super.key, required this.programId});
+  const SessionScreen({super.key, required this.programId, this.light = false});
   final int programId;
+
+  /// Облегчённая версия на тяжёлый день: меньше подходов.
+  final bool light;
 
   @override
   State<SessionScreen> createState() => _SessionScreenState();
 }
 
 class _ExerciseInput {
-  _ExerciseInput(this.exercise, this.last)
-    : reps = [for (var i = 0; i < exercise.sets; i++) TextEditingController()],
+  _ExerciseInput(this.exercise, this.last, int sets)
+    : reps = [for (var i = 0; i < sets; i++) TextEditingController()],
       weight = TextEditingController(text: last.isNotEmpty && last.first.weight != null ? formatNumber(last.first.weight!) : '');
 
   final ProgramExercise exercise;
@@ -528,6 +564,23 @@ class _SessionScreenState extends State<SessionScreen> {
   final _note = TextEditingController();
   var _day = todayKey();
   var _saving = false;
+  late var _light = widget.light;
+
+  /// Переключить облегчённую версию: убрать лишние пустые подходы или вернуть их.
+  void _setLight(bool light) {
+    setState(() {
+      _light = light;
+      for (final input in _inputs!) {
+        final want = light ? lightSets(_program!, input.exercise) : input.exercise.sets;
+        while (input.reps.length < want) {
+          input.reps.add(TextEditingController());
+        }
+        while (input.reps.length > want && input.reps.last.text.trim().isEmpty) {
+          input.reps.removeLast().dispose();
+        }
+      }
+    });
+  }
 
   @override
   void initState() {
@@ -543,7 +596,7 @@ class _SessionScreenState extends State<SessionScreen> {
     if (!mounted) return;
     setState(() {
       _program = p;
-      _inputs = [for (final e in exercises) _ExerciseInput(e, last[e.id] ?? const [])];
+      _inputs = [for (final e in exercises) _ExerciseInput(e, last[e.id] ?? const [], _light ? lightSets(p, e) : e.sets)];
     });
   }
 
@@ -569,9 +622,11 @@ class _SessionScreenState extends State<SessionScreen> {
     }
     if (sets.isEmpty) return showSnack(context, 'Запиши хотя бы один подход');
     setState(() => _saving = true);
-    await context.db.saveSession(program: _program!, day: _day, sets: sets, note: emptyToNull(_note.text));
+    final planned = inputs.fold<int>(0, (a, i) => a + i.exercise.sets);
+    final minimum = sessionIsMinimum(plannedSets: planned, doneSets: sets.length);
+    await context.db.saveSession(program: _program!, day: _day, sets: sets, note: emptyToNull(_note.text), minimum: minimum);
     if (mounted) {
-      showSnack(context, 'Тренировка записана');
+      showSnack(context, minimum ? 'Записано как минимум. Это тоже засчитывается' : 'Тренировка записана');
       Navigator.pop(context);
     }
   }
@@ -580,12 +635,36 @@ class _SessionScreenState extends State<SessionScreen> {
   Widget build(BuildContext context) {
     final inputs = _inputs;
     return Scaffold(
-      appBar: AppBar(title: Text(_program?.name ?? 'Тренировка')),
+      appBar: AppBar(
+        title: Text(_program?.name ?? 'Тренировка'),
+        actions: [
+          if (inputs != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 12),
+              child: FilterChip(label: const Text('Минимум'), selected: _light, onSelected: _setLight),
+            ),
+        ],
+      ),
       body: inputs == null
           ? const Center(child: CircularProgressIndicator())
           : ListView(
               padding: const EdgeInsets.only(bottom: 32),
               children: [
+                if (_light)
+                  Card(
+                    color: Accent.reminders.withValues(alpha: 0.14),
+                    child: Padding(
+                      padding: const EdgeInsets.all(14),
+                      child: Text(
+                        [
+                          'Облегчённая версия: по ${_program!.minSets ?? 1} подх. на упражнение.',
+                          ?_program!.minimumText,
+                          'Сохранится как минимум.',
+                        ].join(' '),
+                        style: const TextStyle(height: 1.35),
+                      ),
+                    ),
+                  ),
                 if (_program!.note != null)
                   Padding(
                     padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
@@ -792,7 +871,10 @@ class SessionViewScreen extends StatelessWidget {
             children: [
               Padding(
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
-                child: Text(_capitalize(formatDayLong(s.day)), style: TextStyle(color: muted)),
+                child: Text(
+                  '${_capitalize(formatDayLong(s.day))}${s.minimum ? ' · облегчённая, засчитан минимум' : ''}',
+                  style: TextStyle(color: muted),
+                ),
               ),
               if (s.note != null)
                 Card(

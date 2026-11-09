@@ -16,6 +16,24 @@ SleepLog night(int id, int wakeDay, int bed, int wake) {
   return SleepLog(id: id, day: wakeDay, bedAt: t.bedAt, wakeAt: t.wakeAt);
 }
 
+/// Убрать из базы всё, что появилось в версии 3.
+Future<void> downgradeToV2(AppDatabase db) async {
+  for (final t in ['budget_lines', 'time_blocks', 'hard_days']) {
+    await db.customStatement('DROP TABLE "$t"');
+  }
+  for (final (table, column) in [
+    ('trackers', 'daily_goal'),
+    ('trackers', 'daily_min'),
+    ('goals', 'minimum_value'),
+    ('programs', 'min_sets'),
+    ('programs', 'minimum_text'),
+    ('workout_sessions', 'minimum'),
+  ]) {
+    await db.customStatement('ALTER TABLE "$table" DROP COLUMN "$column"');
+  }
+  await db.customStatement('PRAGMA user_version = 2');
+}
+
 void main() {
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
 
@@ -127,14 +145,15 @@ void main() {
     final file = File('${dir.path}/db.sqlite');
 
     // Делаем базу «как в версии 1»: без таблиц сна и питания, с эмодзи в иконках.
-    final v2 = AppDatabase(NativeDatabase(file));
-    await v2.saveHabit(HabitsCompanion.insert(name: 'Код', icon: const Value('💻')));
-    await v2.saveHabit(HabitsCompanion.insert(name: 'Своя', icon: const Value('🦄')));
+    final current = AppDatabase(NativeDatabase(file));
+    await current.saveHabit(HabitsCompanion.insert(name: 'Код', icon: const Value('💻')));
+    await current.saveHabit(HabitsCompanion.insert(name: 'Своя', icon: const Value('🦄')));
+    await downgradeToV2(current);
     for (final t in ['water_logs', 'meals', 'foods', 'sleep_logs']) {
-      await v2.customStatement('DROP TABLE "$t"');
+      await current.customStatement('DROP TABLE "$t"');
     }
-    await v2.customStatement('PRAGMA user_version = 1');
-    await v2.close();
+    await current.customStatement('PRAGMA user_version = 1');
+    await current.close();
 
     final db = AppDatabase(NativeDatabase(file));
     addTearDown(db.close);
@@ -142,5 +161,23 @@ void main() {
     expect(habits.map((h) => h.icon), ['code', '🦄']);
     await db.addWater(250, day: 20261109);
     expect((await db.waterBetween(20261109, 20261109)).single.ml, 250);
+  });
+
+  test('переход с версии 2: тяжёлый день из настройки переезжает в таблицу', () async {
+    final dir = await Directory.systemTemp.createTemp('planer_migration3');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/db.sqlite');
+    final current = AppDatabase(NativeDatabase(file));
+    await current.saveTracker(TrackersCompanion.insert(name: 'Код', kind: TrackerKind.duration));
+    await downgradeToV2(current);
+    await current.customStatement("INSERT INTO settings (key, value) VALUES ('bad_day', '20261109')");
+    await current.close();
+
+    final db = AppDatabase(NativeDatabase(file));
+    addTearDown(db.close);
+    expect(await db.isHardDay(20261109), isTrue);
+    expect((await db.watchAllSettings().first).containsKey('bad_day'), isFalse);
+    final t = (await db.select(db.trackers).get()).single;
+    expect(t.dailyGoal, isNull);
   });
 }

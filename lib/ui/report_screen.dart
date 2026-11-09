@@ -99,6 +99,20 @@ class _ReportScreenState extends State<ReportScreen> {
                   ],
                 ),
               ),
+              if (r.hardDays > 0 || r.habits.any((h) => h.minimum > 0) || r.workoutsMinimum > 0)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 4, 16, 4),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      if (r.hardDays > 0) Pill('тяжёлых дней: ${r.hardDays}', icon: Icons.battery_alert_rounded, color: Accent.reminders),
+                      if (r.habits.any((h) => h.minimum > 0))
+                        Pill('привычек минимумом: ${r.habits.fold(0, (a, h) => a + h.minimum)}', color: Accent.reminders),
+                      if (r.workoutsMinimum > 0) Pill('облегчённых тренировок: ${r.workoutsMinimum}', color: Accent.reminders),
+                    ],
+                  ),
+                ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
                 child: Row(
@@ -172,7 +186,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   stats: [
                     ('В среднем', formatDuration(r.sleep!.stats.avgDuration!)),
                     ('Отбой', formatMinutes(r.sleep!.stats.avgBed!)),
-                    ('Вовремя', '${r.sleep!.stats.onTime} из ${r.sleep!.stats.nights}'),
+                    ('Выспался', '${r.sleep!.stats.full} из ${r.sleep!.stats.nights}'),
                   ],
                 ),
               ],
@@ -185,7 +199,10 @@ class _ReportScreenState extends State<ReportScreen> {
                   stats: [
                     ('Ккал в день', formatNumber(r.food!.avgKcal, maxDecimals: 0)),
                     ('Белок', '${formatNumber(r.food!.avgProtein, maxDecimals: 0)} г'),
-                    ('В норме', '${r.food!.onTarget} из ${r.food!.days}'),
+                    (
+                      r.food!.minimum > 0 ? 'Норма · минимум' : 'В норме',
+                      r.food!.minimum > 0 ? '${r.food!.onTarget} · ${r.food!.minimum}' : '${r.food!.onTarget} из ${r.food!.days}',
+                    ),
                   ],
                 ),
               ],

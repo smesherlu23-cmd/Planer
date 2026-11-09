@@ -42,6 +42,9 @@ enum FundKind {
   debt,
 }
 
+/// На что уходит время в плане дня.
+enum BlockKind { sleep, work, study, sport, rest, home, road, food, other }
+
 enum JournalKind {
   /// Итог дня.
   day,
@@ -100,6 +103,10 @@ class Trackers extends Table {
   /// В какие дни трекер показывается на экране «Сегодня». 0 = не показывать.
   IntColumn get daysMask => integer().withDefault(const Constant(0))();
   IntColumn get reminderMinutes => integer().nullable()();
+
+  /// Норма и минимум за день, для чисел и времени. Без них засчитывается любое значение.
+  RealColumn get dailyGoal => real().nullable()();
+  RealColumn get dailyMin => real().nullable()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
@@ -123,6 +130,9 @@ class Goals extends Table {
   IntColumn get fundId => integer().nullable().references(Funds, #id, onDelete: KeyAction.setNull)();
   RealColumn get startValue => real()();
   RealColumn get targetValue => real()();
+
+  /// Минимальный результат, который уже можно считать успехом. Необязательно.
+  RealColumn get minimumValue => real().nullable()();
 
   /// Желаемый срок (ключ дня), необязательно.
   IntColumn get deadline => integer().nullable()();
@@ -193,6 +203,10 @@ class Programs extends Table {
   IntColumn get daysMask => integer().withDefault(const Constant(0))();
   IntColumn get reminderMinutes => integer().nullable()();
   TextColumn get note => text().nullable()();
+
+  /// Минимум на тяжёлый день: сколько подходов на упражнение и что ещё сделать.
+  IntColumn get minSets => integer().nullable()();
+  TextColumn get minimumText => text().nullable()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
@@ -218,6 +232,9 @@ class WorkoutSessions extends Table {
   IntColumn get day => integer()();
   DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
   TextColumn get note => text().nullable()();
+
+  /// Сделано меньше плана: облегчённая тренировка.
+  BoolColumn get minimum => boolean().withDefault(const Constant(false))();
 }
 
 class SessionSets extends Table {
@@ -292,6 +309,42 @@ class WaterLogs extends Table {
   IntColumn get ml => integer()();
 }
 
+/// День, отмеченный как тяжёлый: в этот день засчитывается минимум.
+class HardDays extends Table {
+  IntColumn get day => integer()();
+
+  @override
+  Set<Column> get primaryKey => {day};
+}
+
+/// Блок времени в плане дня, например «Работа 8:00–17:00 по будням».
+class TimeBlocks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('clock'))();
+  IntColumn get kind => intEnum<BlockKind>()();
+
+  /// Начало и конец в минутах от полуночи. Конец меньше начала: блок через полночь.
+  IntColumn get start => integer()();
+  IntColumn get end => integer()();
+  IntColumn get daysMask => integer().withDefault(const Constant(everyDay))();
+
+  /// Напомнить в начале блока.
+  BoolColumn get remind => boolean().withDefault(const Constant(false))();
+  TextColumn get note => text().nullable()();
+}
+
+/// Строка бюджета на месяц: плановый доход по категории, лимит расходов по категории или взнос в копилку и платёж по долгу.
+class BudgetLines extends Table {
+  IntColumn get id => integer().autoIncrement()();
+
+  /// Месяц как yyyymm, например 202611.
+  IntColumn get month => integer()();
+  IntColumn get categoryId => integer().nullable().references(Categories, #id, onDelete: KeyAction.cascade)();
+  IntColumn get fundId => integer().nullable().references(Funds, #id, onDelete: KeyAction.cascade)();
+  RealColumn get amount => real()();
+}
+
 class Settings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
@@ -327,13 +380,16 @@ class Settings extends Table {
     Foods,
     Meals,
     WaterLogs,
+    HardDays,
+    TimeBlocks,
+    BudgetLines,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -346,11 +402,32 @@ class AppDatabase extends _$AppDatabase {
         await m.createTable(waterLogs);
         await convertEmojiIcons();
       }
+      if (from < 3) {
+        // Версия 3: тяжёлые дни по датам, пороги минимума, план дня, бюджет.
+        await m.createTable(hardDays);
+        await m.createTable(timeBlocks);
+        await m.createTable(budgetLines);
+        await m.addColumn(trackers, trackers.dailyGoal);
+        await m.addColumn(trackers, trackers.dailyMin);
+        await m.addColumn(goals, goals.minimumValue);
+        await m.addColumn(programs, programs.minSets);
+        await m.addColumn(programs, programs.minimumText);
+        await m.addColumn(workoutSessions, workoutSessions.minimum);
+        await moveLegacyHardDay();
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  /// Раньше тяжёлый день хранился одной настройкой и забывался на следующий день. Переносим его в таблицу.
+  Future<void> moveLegacyHardDay() async {
+    final row = await customSelect("SELECT value FROM settings WHERE key = 'bad_day'").getSingleOrNull();
+    final day = int.tryParse(row?.read<String>('value') ?? '');
+    if (day != null) await customStatement('INSERT OR IGNORE INTO hard_days (day) VALUES (?)', [day]);
+    await customStatement("DELETE FROM settings WHERE key = 'bad_day'");
+  }
 
   /// Заменить эмодзи из старых версий на ключи иконок. Неизвестные значения не трогает.
   Future<void> convertEmojiIcons() async {
