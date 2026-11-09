@@ -22,6 +22,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          # Gradle и Kotlin скачиваются с github.com, который иногда отвечает 504. Кэш убирает эти скачивания.
+          cache: gradle
 
       - uses: subosito/flutter-action@v2
         with:
@@ -53,7 +55,13 @@ jobs:
           PLANER_KEY_ALIAS: ${{ secrets.PLANER_KEY_ALIAS }}
           PLANER_KEY_PASSWORD: ${{ secrets.PLANER_KEY_PASSWORD }}
         run: |
-          flutter build apk --release --build-number=${{ github.run_number }}
+          # Повтор только из-за сетевых сбоев при скачивании Gradle и Kotlin: ошибка в коде упадёт все три раза.
+          for attempt in 1 2 3; do
+            if flutter build apk --release --build-number=${{ github.run_number }}; then break; fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            echo "Сборка не удалась, попытка $attempt из 3. Повтор через 30 секунд."
+            sleep 30
+          done
           cp build/app/outputs/flutter-apk/app-release.apk planer.apk
 
       - uses: actions/upload-artifact@v4
