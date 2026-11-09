@@ -79,6 +79,41 @@ class Habits extends Table {
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// 0: сделать (полезная привычка), 1: бросить (отметка = день без срыва).
+  IntColumn get kind => integer().withDefault(const Constant(0))();
+
+  /// Цель в день для привычки-количества (8 стаканов, 20 страниц). null: просто отметка.
+  RealColumn get target => real().nullable()();
+  TextColumn get unit => text().nullable()();
+
+  /// Сколько раз в неделю. null: по дням из [daysMask].
+  IntColumn get perWeek => integer().nullable()();
+
+  /// Время дня: 0 любое, 1 утро, 2 день, 3 вечер.
+  IntColumn get partOfDay => integer().withDefault(const Constant(0))();
+
+  /// Якорь: после чего делаю («после утреннего кофе»).
+  TextColumn get cue => text().nullable()();
+
+  /// Зачем это мне.
+  TextColumn get why => text().nullable()();
+}
+
+/// Подробности дня привычки: сколько сделано, пропуск по уважительной причине, заметка.
+/// Сама отметка «сделано» живёт в [HabitLogs].
+class HabitDays extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get habitId => integer().references(Habits, #id, onDelete: KeyAction.cascade)();
+  IntColumn get day => integer()();
+  RealColumn get value => real().nullable()();
+  BoolColumn get skipped => boolean().withDefault(const Constant(false))();
+  TextColumn get note => text().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {habitId, day},
+  ];
 }
 
 class HabitLogs extends Table {
@@ -277,6 +312,14 @@ class SleepLogs extends Table {
   /// Как выспался, от 1 до 5.
   IntColumn get quality => integer().nullable()();
   TextColumn get note => text().nullable()();
+
+  /// Дневник сна: сколько минут засыпал, сколько раз просыпался ночью и сколько минут не спал.
+  IntColumn get latency => integer().nullable()();
+  IntColumn get awakenings => integer().nullable()();
+  IntColumn get awakeMinutes => integer().nullable()();
+
+  /// Что было вечером: ключи через запятую (coffee, alcohol, screen...).
+  TextColumn get tags => text().nullable()();
 }
 
 /// Своё блюдо или продукт для добавления в один тап.
@@ -372,6 +415,7 @@ class Settings extends Table {
     TrackerEntries,
     Habits,
     HabitLogs,
+    HabitDays,
     Funds,
     Goals,
     Categories,
@@ -397,7 +441,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -438,11 +482,38 @@ class AppDatabase extends _$AppDatabase {
         await add(meals, meals.slot);
         await fillTemplateMacros();
       }
+      if (from < 5) {
+        // Версия 5: привычки-количества, N раз в неделю, бросить; дневник сна.
+        await addMissingColumns(m, habits, [
+          habits.kind,
+          habits.target,
+          habits.unit,
+          habits.perWeek,
+          habits.partOfDay,
+          habits.cue,
+          habits.why,
+        ]);
+        await addMissingColumns(m, sleepLogs, [sleepLogs.latency, sleepLogs.awakenings, sleepLogs.awakeMinutes, sleepLogs.tags]);
+        await customStatement(
+          'CREATE TABLE IF NOT EXISTS "habit_days" ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+          '"habit_id" INTEGER NOT NULL REFERENCES habits (id) ON DELETE CASCADE, "day" INTEGER NOT NULL, "value" REAL NULL, '
+          '"skipped" INTEGER NOT NULL DEFAULT 0 CHECK ("skipped" IN (0, 1)), "note" TEXT NULL, UNIQUE ("habit_id", "day"))',
+        );
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  /// Добавить колонки, которых ещё нет: миграция переживает повторный запуск и смену номеров версий.
+  Future<void> addMissingColumns(Migrator m, TableInfo<Table, Object?> table, List<GeneratedColumn<Object>> columns) async {
+    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+    final have = {for (final c in cols) c.read<String>('name')};
+    for (final c in columns) {
+      if (!have.contains(c.name)) await m.addColumn(table, c);
+    }
+  }
 
   /// Раньше тяжёлый день хранился одной настройкой и забывался на следующий день. Переносим его в таблицу.
   Future<void> moveLegacyHardDay() async {
