@@ -61,11 +61,6 @@ jobs:
             echo "PLANER_KEYSTORE_PATH=$RUNNER_TEMP/planer.jks" >> "$GITHUB_ENV"
           fi
 
-      - name: Зеркало Maven Central для Gradle
-        run: |
-          mkdir -p ~/.gradle/init.d
-          cp .github/gradle/mirror.init.gradle ~/.gradle/init.d/
-
       - name: Gradle с запасных адресов
         run: |
           # github.com иногда отвечает 504 на скачивание Gradle. Пробуем несколько адресов и даём Gradle готовый файл.

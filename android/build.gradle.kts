@@ -1,6 +1,8 @@
 allprojects {
     repositories {
         google()
+        // Зеркало Maven Central от Google: сам Maven Central иногда отвечает 429 или уводит на github.com с 504.
+        maven("https://maven-central.storage-download.googleapis.com/maven2/")
         mavenCentral()
     }
 }
