@@ -15,6 +15,7 @@ import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
 import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
+import 'package:planer/ui/habits_screen.dart';
 import 'package:planer/ui/icons.dart';
 import 'package:planer/ui/more_screen.dart';
 import 'package:planer/ui/theme.dart';
@@ -100,7 +101,18 @@ void main() {
         final bed = [23 * 60, 23 * 60 + 40, 22 * 60 + 50, 23 * 60 + 10, 15][i % 5];
         final wake = [7 * 60, 7 * 60 + 15, 6 * 60 + 40][i % 3];
         final t = sleepTimes(wakeDay: addDays(today, -i), bedMinutes: bed, wakeMinutes: wake);
-        await db.saveSleep(SleepLogsCompanion.insert(day: addDays(today, -i), bedAt: t.bedAt, wakeAt: t.wakeAt, quality: Value(3 + i % 3)));
+        await db.saveSleep(
+          SleepLogsCompanion.insert(
+            day: addDays(today, -i),
+            bedAt: t.bedAt,
+            wakeAt: t.wakeAt,
+            quality: Value(3 + i % 3),
+            latency: Value([10, 20, 35][i % 3]),
+            awakenings: Value(i % 4 == 0 ? 1 : 0),
+            awakeMinutes: Value(i % 4 == 0 ? 15 : null),
+            tags: Value(i % 2 == 0 ? 'screen,coffee' : 'walk'),
+          ),
+        );
       }
       final foods = await db.watchFoods().first;
       for (var i = 0; i <= 6; i++) {
@@ -163,8 +175,40 @@ void main() {
     await tester.tap(find.text('Программирование').hitTestable().first);
     await pumpData(tester);
     await shot(tester, '02b_habit_detail');
+    await tester.scrollUntilVisible(find.text('Календарь').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '02b2_habit_calendar');
     await back(tester);
     await pumpData(tester);
+    await tester.tap(find.text('Неделя').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '02c_habits_week');
+    await tester.tap(find.text('Итоги').hitTestable().first);
+    await pumpData(tester);
+    expect(find.text('идеальных дней'), findsOneWidget);
+    await shot(tester, '02d_habits_stats');
+    await tester.tap(find.text('Сегодня').hitTestable().first);
+    await pumpData(tester);
+    // Новая привычка из идей: вода по стаканам.
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await pumpData(tester);
+    await shot(tester, '02e_habit_ideas');
+    await tester.tap(find.text('Вода').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '02f_habit_edit');
+    await tester.scrollUntilVisible(
+      find.text('Сохранить').hitTestable(),
+      300,
+      scrollable: find.descendant(of: find.byType(HabitEditScreen), matching: find.byType(Scrollable)).first,
+    );
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Сохранить'));
+    await pumpData(tester);
+    final water = (await tester.runAsync(() => db.select(db.habits).get()))!.firstWhere((h) => h.name == 'Вода');
+    expect(water.target, 8);
+    await tester.tap(find.byTooltip('+1').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '02g_habits_today');
 
     await tab('Деньги', '03_money');
     await tester.tap(find.text('Аналитика и планы').hitTestable().first);
@@ -201,6 +245,30 @@ void main() {
 
     await openFromMore('План дня', '15_day_plan');
     await openFromMore('Сон', '12_sleep');
+    // Разбор сна и инструменты.
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Сон').hitTestable().first);
+    await pumpData(tester);
+    await tester.scrollUntilVisible(find.text('Окно сна, 14 ночей').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '12c_sleep_window');
+    await tester.scrollUntilVisible(find.text('Что влияет на мой сон').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '12d_sleep_rhythm');
+    await tester.scrollUntilVisible(find.text('Когда лечь, когда встать').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('Когда лечь, когда встать').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '12f_sleep_cycles');
+    await back(tester);
+    await pumpData(tester);
+    await tester.tap(find.text('Вечерний план').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '12e_sleep_evening');
+    await back(tester);
+    await pumpData(tester);
+    await back(tester);
+    await pumpData(tester);
     // Окно записи сна.
     await tab('Ещё', '05_more');
     await tester.tap(find.text('Сон').hitTestable().first);
