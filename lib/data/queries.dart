@@ -376,3 +376,91 @@ extension MoreQueries on AppDatabase {
 
   Stream<List<TrackerEntry>> watchAllEntries() => select(trackerEntries).watch();
 }
+
+/// Сон и питание.
+extension HealthQueries on AppDatabase {
+  // ----- Сон -----
+
+  Stream<List<SleepLog>> watchSleep({int? from}) {
+    final q = select(sleepLogs)..orderBy([(t) => OrderingTerm.desc(t.day), (t) => OrderingTerm.desc(t.wakeAt)]);
+    if (from != null) q.where((t) => t.day.isBiggerOrEqualValue(from));
+    return q.watch();
+  }
+
+  Future<List<SleepLog>> sleepBetween(int from, int to) => (select(sleepLogs)..where((t) => t.day.isBetweenValues(from, to))).get();
+
+  /// Сохранить ночь. На один день пробуждения одна запись: новая заменяет старую.
+  Future<int> saveSleep(SleepLogsCompanion log) {
+    return transaction(() async {
+      if (log.id.present) {
+        await (update(sleepLogs)..where((t) => t.id.equals(log.id.value))).write(log);
+        return log.id.value;
+      }
+      await (delete(sleepLogs)..where((t) => t.day.equals(log.day.value))).go();
+      return into(sleepLogs).insert(log);
+    });
+  }
+
+  // ----- Питание -----
+
+  Stream<List<Food>> watchFoods({bool archived = false}) =>
+      (select(foods)
+            ..where((t) => t.archived.equals(archived))
+            ..orderBy([(t) => OrderingTerm(expression: t.sortOrder), (t) => OrderingTerm(expression: t.id)]))
+          .watch();
+
+  Future<int> saveFood(FoodsCompanion f) async {
+    if (f.id.present) {
+      await (update(foods)..where((t) => t.id.equals(f.id.value))).write(f);
+      return f.id.value;
+    }
+    final order = await customSelect('SELECT COALESCE(MAX(sort_order), 0) + 1 AS n FROM foods', readsFrom: {foods}).getSingle();
+    return into(foods).insert(f.copyWith(sortOrder: Value(order.read<int>('n'))));
+  }
+
+  Stream<List<Meal>> watchMeals({required int from, required int to}) =>
+      (select(meals)
+            ..where((t) => t.day.isBetweenValues(from, to))
+            ..orderBy([(t) => OrderingTerm(expression: t.at)]))
+          .watch();
+
+  Future<List<Meal>> mealsBetween(int from, int to) => (select(meals)..where((t) => t.day.isBetweenValues(from, to))).get();
+
+  /// Записать блюдо как съеденное.
+  Future<int> eatFood(Food f, {int? day}) => into(meals).insert(
+    MealsCompanion.insert(
+      day: day ?? todayKey(),
+      name: f.name,
+      icon: Value(f.icon),
+      kcal: f.kcal,
+      protein: Value(f.protein),
+      foodId: Value(f.id),
+    ),
+  );
+
+  Future<int> saveMeal(MealsCompanion m) async {
+    if (m.id.present) {
+      await (update(meals)..where((t) => t.id.equals(m.id.value))).write(m);
+      return m.id.value;
+    }
+    return into(meals).insert(m);
+  }
+
+  Stream<List<WaterLog>> watchWater({required int from, required int to}) =>
+      (select(waterLogs)..where((t) => t.day.isBetweenValues(from, to))).watch();
+
+  Future<List<WaterLog>> waterBetween(int from, int to) => (select(waterLogs)..where((t) => t.day.isBetweenValues(from, to))).get();
+
+  Future<int> addWater(int ml, {int? day}) => into(waterLogs).insert(WaterLogsCompanion.insert(day: day ?? todayKey(), ml: ml));
+
+  /// Убрать последний записанный стакан за день.
+  Future<void> undoWater(int day) async {
+    final last =
+        await (select(waterLogs)
+              ..where((t) => t.day.equals(day))
+              ..orderBy([(t) => OrderingTerm.desc(t.id)])
+              ..limit(1))
+            .getSingleOrNull();
+    if (last != null) await (delete(waterLogs)..where((t) => t.id.equals(last.id))).go();
+  }
+}

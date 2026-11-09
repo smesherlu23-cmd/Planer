@@ -88,6 +88,8 @@ Future<ImportSummary> importJson(AppDatabase db, String json) async {
       }
       counts[table.actualTableName] = n;
     }
+    // Файл из старой версии мог хранить эмодзи вместо иконок.
+    await db.convertEmojiIcons();
   });
   return ImportSummary(counts);
 }

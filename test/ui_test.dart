@@ -13,7 +13,10 @@ import 'package:planer/data/database.dart';
 import 'package:planer/data/dates.dart';
 import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
+import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
+import 'package:planer/ui/icons.dart';
+import 'package:planer/ui/theme.dart';
 
 const screenshots = bool.fromEnvironment('SCREENSHOTS');
 
@@ -91,6 +94,24 @@ void main() {
           body: const Value('Что сделал сегодня:\n1. Час кода\n2. Тренировка A\n3. Лёг до 23:00'),
         ),
       );
+      // Сон за две недели, кроме сегодняшней ночи, и еда с водой за неделю.
+      for (var i = 1; i <= 13; i++) {
+        final bed = [23 * 60, 23 * 60 + 40, 22 * 60 + 50, 23 * 60 + 10, 15][i % 5];
+        final wake = [7 * 60, 7 * 60 + 15, 6 * 60 + 40][i % 3];
+        final t = sleepTimes(wakeDay: addDays(today, -i), bedMinutes: bed, wakeMinutes: wake);
+        await db.saveSleep(SleepLogsCompanion.insert(day: addDays(today, -i), bedAt: t.bedAt, wakeAt: t.wakeAt, quality: Value(3 + i % 3)));
+      }
+      final foods = await db.watchFoods().first;
+      for (var i = 0; i <= 6; i++) {
+        final day = addDays(today, -i);
+        final count = i == 0 ? 3 : 4 + i % 3;
+        for (var j = 0; j < count; j++) {
+          await db.eatFood(foods[(j * 2 + i) % foods.length], day: day);
+        }
+        for (var j = 0; j < (i == 0 ? 3 : 6 + i % 3); j++) {
+          await db.addWater(250, day: day);
+        }
+      }
       final programs = await db.select(db.programs).get();
       await db.saveSession(
         program: programs.first,
@@ -150,6 +171,19 @@ void main() {
     await back(tester);
     await pumpData(tester);
 
+    await openFromMore('Сон', '12_sleep');
+    // Окно записи сна.
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Сон').hitTestable().first);
+    await pumpData(tester);
+    await tester.tap(find.text('Записать').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '12b_sleep_sheet');
+    await back(tester);
+    await pumpData(tester);
+    await back(tester);
+    await pumpData(tester);
+    await openFromMore('Питание', '13_food');
     await openFromMore('Цели', '07_goals');
     await openFromMore('Записи', '08_journal');
     await openFromMore('Отчёт недели', '09_report');
@@ -158,6 +192,9 @@ void main() {
 
     // Отметка привычки на «Сегодня».
     await tab('Сегодня', '01_today');
+    await tester.scrollUntilVisible(find.text('Спина и осанка').hitTestable(), 200, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '01b_today_scrolled');
     await tester.tap(find.text('Спина и осанка').hitTestable().first);
     await pumpData(tester);
     final logs = await tester.runAsync(() => db.select(db.habitLogs).get());
@@ -166,6 +203,35 @@ void main() {
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
     await tester.runAsync(() => db.close());
+  });
+
+  testWidgets('выбор иконки', (tester) async {
+    tester.view.physicalSize = const Size(1080, 2280);
+    tester.view.devicePixelRatio = 2.75;
+    addTearDown(tester.view.reset);
+    String? picked;
+    await tester.pumpWidget(
+      MaterialApp(
+        debugShowCheckedModeBanner: false,
+        theme: buildTheme(theme == 'dark' ? Brightness.dark : Brightness.light),
+        home: Builder(
+          builder: (context) => Scaffold(
+            body: Center(
+              child: FilledButton(
+                onPressed: () async => picked = await pickIcon(context, current: 'code'),
+                child: const Text('Иконка'),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Иконка'));
+    await tester.pumpAndSettle();
+    if (screenshots) await expectLater(find.byType(MaterialApp), matchesGoldenFile('screens/$theme/14_icon_picker.png'));
+    await tester.tap(find.byIcon(Icons.bedtime_rounded).hitTestable().first);
+    await tester.pumpAndSettle();
+    expect(picked, 'bedtime');
   });
 
   testWidgets('первый запуск показывает выбор шаблона', (tester) async {

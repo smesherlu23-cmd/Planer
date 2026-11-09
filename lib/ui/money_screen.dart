@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../data/dates.dart';
+import '../data/icon_keys.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/values.dart';
 import 'common.dart';
+import 'icons.dart';
 import 'theme.dart';
 
 /// Долг выплачивается: прогресс зелёный. Копилка копится: прогресс цвета раздела.
@@ -208,7 +210,7 @@ class _TransactionTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ListTile(
-      leading: EmojiAvatar(category?.icon ?? (t.isIncome ? '💵' : '💸'), size: 40, color: t.isIncome ? Accent.habits : Accent.money),
+      leading: ItemIcon(category?.icon, size: 40, fallback: 'payments'),
       title: Text(category?.name ?? (t.isIncome ? 'Доход' : 'Без категории')),
       subtitle: t.note == null ? null : Text(t.note!, maxLines: 1, overflow: TextOverflow.ellipsis),
       trailing: Text(
@@ -236,7 +238,7 @@ class _CategoryRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         children: [
-          EmojiAvatar(category?.icon ?? '💸', size: 38, color: Accent.money),
+          ItemIcon(category?.icon, size: 38, fallback: 'payments'),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -314,7 +316,7 @@ class _FundCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  EmojiAvatar(f.icon, color: isDebt ? _debtColor : Accent.money),
+                  ItemIcon(f.icon, fallback: isDebt ? 'bank' : 'savings'),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -433,7 +435,11 @@ class _TransactionFormState extends State<_TransactionForm> {
               children: [
                 for (final c in cats)
                   ChoiceChip(
-                    label: Text('${c.icon} ${c.name}'),
+                    avatar: Icon(
+                      appIcon(c.icon, fallback: 'payments').icon,
+                      color: appIcon(c.icon, fallback: 'payments').color,
+                    ),
+                    label: Text(c.name),
                     selected: _category == c.id,
                     onSelected: (on) => setState(() => _category = on ? c.id : null),
                   ),
@@ -514,7 +520,7 @@ class FundDetailScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          EmojiAvatar(f.icon, size: 56, color: isDebt ? _debtColor : Accent.money),
+                          ItemIcon(f.icon, size: 56, fallback: isDebt ? 'bank' : 'savings'),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
@@ -673,7 +679,7 @@ class FundEditScreen extends StatefulWidget {
 
 class _FundEditScreenState extends State<FundEditScreen> {
   late final _name = TextEditingController(text: widget.fund?.name ?? '');
-  late final _icon = TextEditingController(text: widget.fund?.icon ?? '🐷');
+  late String? _icon = iconKeyFor(widget.fund?.icon);
   late FundKind _kind = widget.fund?.kind ?? FundKind.savings;
   late final _initial = TextEditingController(text: _num(widget.fund?.initialAmount));
   late final _target = TextEditingController(text: _num(widget.fund?.target));
@@ -692,7 +698,7 @@ class _FundEditScreenState extends State<FundEditScreen> {
       FundsCompanion(
         id: widget.fund == null ? const Value.absent() : Value(widget.fund!.id),
         name: Value(name),
-        icon: Value(emptyToNull(_icon.text) ?? (isDebt ? '🏦' : '🐷')),
+        icon: Value(_icon ?? (isDebt ? 'bank' : 'savings')),
         kind: Value(_kind),
         initialAmount: Value(initial),
         target: Value(isDebt ? null : parseNumber(_target.text)),
@@ -724,7 +730,7 @@ class _FundEditScreenState extends State<FundEditScreen> {
           const SizedBox(height: 16),
           Row(
             children: [
-              EmojiField(controller: _icon),
+              IconField(value: _icon, fallback: isDebt ? 'bank' : 'savings', onChanged: (v) => setState(() => _icon = v)),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
@@ -820,7 +826,7 @@ class CategoriesScreen extends StatelessWidget {
   }
 
   Widget _tile(BuildContext context, Category c) => ListTile(
-    leading: EmojiAvatar(c.icon, size: 40, color: c.isIncome ? Accent.habits : Accent.money),
+    leading: ItemIcon(c.icon, size: 40, fallback: 'payments'),
     title: Text(c.name),
     trailing: const Icon(Icons.chevron_right_rounded),
     subtitle: c.monthlyLimit == null ? null : Text('лимит ${formatMoney(c.monthlyLimit!)} в месяц'),
@@ -829,7 +835,7 @@ class CategoriesScreen extends StatelessWidget {
 
   Future<void> _edit(BuildContext context, Category? c) {
     final name = TextEditingController(text: c?.name ?? '');
-    final icon = TextEditingController(text: c?.icon ?? '💸');
+    var icon = iconKeyFor(c?.icon) ?? 'payments';
     final limit = TextEditingController(text: c?.monthlyLimit == null ? '' : formatNumber(c!.monthlyLimit!));
     var income = c?.isIncome ?? false;
     return showFormSheet(
@@ -850,7 +856,7 @@ class CategoriesScreen extends StatelessWidget {
             const SizedBox(height: 12),
             Row(
               children: [
-                EmojiField(controller: icon),
+                IconField(value: icon, fallback: 'payments', onChanged: (v) => setState(() => icon = v)),
                 const SizedBox(width: 12),
                 Expanded(
                   child: TextField(
@@ -873,7 +879,7 @@ class CategoriesScreen extends StatelessWidget {
                   CategoriesCompanion(
                     id: c == null ? const Value.absent() : Value(c.id),
                     name: Value(name.text.trim()),
-                    icon: Value(emptyToNull(icon.text) ?? '💸'),
+                    icon: Value(icon),
                     isIncome: Value(income),
                     monthlyLimit: Value(income ? null : parseNumber(limit.text)),
                   ),

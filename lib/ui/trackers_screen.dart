@@ -5,11 +5,13 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../data/dates.dart';
+import '../data/icon_keys.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/values.dart';
 import 'charts.dart';
 import 'common.dart';
+import 'icons.dart';
 import 'theme.dart';
 
 class TrackersScreen extends StatelessWidget {
@@ -82,7 +84,7 @@ class _TrackerCard extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 10, 12),
           child: Row(
             children: [
-              EmojiAvatar(t.icon, color: Accent.trackers),
+              ItemIcon(t.icon, fallback: 'chart'),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -151,7 +153,7 @@ class TrackerTodayTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 12, 12),
           child: Row(
             children: [
-              EmojiAvatar(tracker.icon, color: Accent.trackers),
+              ItemIcon(tracker.icon, fallback: 'chart'),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -345,7 +347,7 @@ class _EntryFormState extends State<_EntryForm> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('${t.icon} ${t.name}', style: Theme.of(context).textTheme.titleLarge),
+        Text(t.name, style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 16),
         input,
         DayTile(day: _day, onChanged: (d) => setState(() => _day = d ?? _day)),
@@ -435,7 +437,7 @@ class TrackerDetailScreen extends StatelessWidget {
                     children: [
                       Row(
                         children: [
-                          EmojiAvatar(t.icon, size: 56, color: Accent.trackers),
+                          ItemIcon(t.icon, size: 56, fallback: 'chart'),
                           const SizedBox(width: 14),
                           Expanded(
                             child: Column(
@@ -460,8 +462,8 @@ class TrackerDetailScreen extends StatelessWidget {
                         children: [
                           Pill(trackerKindLabel(t.kind), color: Accent.trackers),
                           if (t.daysMask != 0) Pill('на «Сегодня»: ${maskLabel(t.daysMask)}'),
-                          if (t.reminderMinutes != null) Pill('⏰ ${formatMinutes(t.reminderMinutes!)}'),
-                          if (goal != null) Pill('🎯 ${goal.name}', color: Accent.goals),
+                          if (t.reminderMinutes != null) Pill(formatMinutes(t.reminderMinutes!), icon: Icons.alarm_rounded),
+                          if (goal != null) Pill(goal.name, icon: Icons.flag_rounded, color: Accent.goals),
                         ],
                       ),
                       const SizedBox(height: 14),
@@ -562,7 +564,7 @@ class TrackerEditScreen extends StatefulWidget {
 
 class _TrackerEditScreenState extends State<TrackerEditScreen> {
   late final _name = TextEditingController(text: widget.tracker?.name ?? '');
-  late final _icon = TextEditingController(text: widget.tracker?.icon ?? '📈');
+  late String _icon = iconKeyFor(widget.tracker?.icon) ?? 'chart';
   late final _unit = TextEditingController(text: widget.tracker?.unit ?? '');
   late TrackerKind _kind = widget.tracker?.kind ?? TrackerKind.number;
   late int _mask = widget.tracker?.daysMask ?? 0;
@@ -576,7 +578,7 @@ class _TrackerEditScreenState extends State<TrackerEditScreen> {
     final c = TrackersCompanion(
       id: _isNew ? const Value.absent() : Value(widget.tracker!.id),
       name: Value(name),
-      icon: Value(emptyToNull(_icon.text) ?? '📈'),
+      icon: Value(_icon),
       unit: Value(_kind == TrackerKind.number ? emptyToNull(_unit.text) : null),
       kind: Value(_kind),
       daysMask: Value(_mask),
@@ -597,7 +599,7 @@ class _TrackerEditScreenState extends State<TrackerEditScreen> {
         children: [
           Row(
             children: [
-              EmojiField(controller: _icon),
+              IconField(value: _icon, fallback: 'chart', onChanged: (v) => setState(() => _icon = v)),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(

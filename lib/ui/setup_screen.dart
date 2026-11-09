@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../data/templates.dart';
 import 'common.dart';
+import 'icons.dart';
 import 'theme.dart';
 
 /// Первый запуск: выбрать шаблон или начать с чистого листа.
@@ -69,12 +70,14 @@ class _SetupScreenState extends State<SetupScreen> {
               spacing: 6,
               runSpacing: 6,
               children: [
-                Pill('✅ Привычки', color: Accent.habits),
-                Pill('📈 Трекеры', color: Accent.trackers),
-                Pill('🎯 Цели', color: Accent.goals),
-                Pill('💰 Деньги', color: Accent.money),
-                Pill('💪 Спорт', color: Accent.workouts),
-                Pill('📝 Записи', color: Accent.journal),
+                Pill('Привычки', icon: Icons.check_circle_rounded, color: Accent.habits),
+                Pill('Трекеры', icon: Icons.show_chart_rounded, color: Accent.trackers),
+                Pill('Цели', icon: Icons.flag_rounded, color: Accent.goals),
+                Pill('Сон', icon: Icons.bedtime_rounded, color: Accent.sleep),
+                Pill('Питание', icon: Icons.restaurant_rounded, color: Accent.food),
+                Pill('Деньги', icon: Icons.account_balance_wallet_rounded, color: Accent.money),
+                Pill('Спорт', icon: Icons.fitness_center_rounded, color: Accent.workouts),
+                Pill('Записи', icon: Icons.auto_stories_rounded, color: Accent.journal),
               ],
             ),
             const SizedBox(height: 36),
@@ -90,7 +93,7 @@ class _SetupScreenState extends State<SetupScreen> {
                     child: Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        EmojiAvatar(t.id == 'my_plan' ? '🗺️' : '✨', size: 48),
+                        ColorIcon(t.id == 'my_plan' ? Icons.map_rounded : Icons.auto_awesome_rounded, color: Accent.goals, size: 48),
                         const SizedBox(width: 14),
                         Expanded(
                           child: Column(

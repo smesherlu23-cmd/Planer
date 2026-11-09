@@ -265,7 +265,7 @@ class ProgramDetailScreen extends StatelessWidget {
                   runSpacing: 6,
                   children: [
                     Pill(p.daysMask == 0 ? 'без расписания' : maskLabel(p.daysMask), color: Accent.workouts),
-                    if (p.reminderMinutes != null) Pill('⏰ ${formatMinutes(p.reminderMinutes!)}'),
+                    if (p.reminderMinutes != null) Pill(formatMinutes(p.reminderMinutes!), icon: Icons.alarm_rounded),
                     Pill('${exercises.length} упр.'),
                   ],
                 ),
@@ -571,7 +571,7 @@ class _SessionScreenState extends State<SessionScreen> {
     setState(() => _saving = true);
     await context.db.saveSession(program: _program!, day: _day, sets: sets, note: emptyToNull(_note.text));
     if (mounted) {
-      showSnack(context, 'Тренировка записана 💪');
+      showSnack(context, 'Тренировка записана');
       Navigator.pop(context);
     }
   }
@@ -673,9 +673,18 @@ class _ExerciseCard extends StatelessWidget {
                 margin: const EdgeInsets.only(top: 10),
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(color: Accent.workouts.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(14)),
-                child: Text(
-                  '⬆️ В прошлый раз все подходы на верхней границе. Пора усложнять${e.note != null ? ': ${e.note}' : '.'}',
-                  style: const TextStyle(height: 1.35),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Icon(Icons.trending_up_rounded, color: Accent.workouts, size: 20),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'В прошлый раз все подходы на верхней границе. Пора усложнять${e.note != null ? ': ${e.note}' : '.'}',
+                        style: const TextStyle(height: 1.35),
+                      ),
+                    ),
+                  ],
                 ),
               )
             else if (e.note != null)

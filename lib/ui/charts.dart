@@ -313,3 +313,98 @@ class DayGrid extends StatelessWidget {
     );
   }
 }
+
+/// Столбики по дням с линией цели: сон по ночам, калории по дням.
+class BarChart extends StatelessWidget {
+  const BarChart({super.key, required this.bars, required this.color, this.target, this.goodColor, this.height = 150});
+
+  /// Подпись под столбиком и значение. null: записи нет.
+  final List<(String label, double? value)> bars;
+  final Color color;
+
+  /// Цвет столбика, который дотянул до цели.
+  final Color? goodColor;
+  final double? target;
+  final double height;
+
+  @override
+  Widget build(BuildContext context) {
+    final scheme = Theme.of(context).colorScheme;
+    return SizedBox(
+      height: height,
+      child: CustomPaint(
+        size: Size.infinite,
+        painter: _BarPainter(
+          bars: bars,
+          color: color,
+          goodColor: goodColor ?? color,
+          target: target,
+          track: scheme.surfaceContainerHighest.withValues(alpha: 0.6),
+          targetColor: scheme.onSurfaceVariant,
+          labelStyle: (Theme.of(context).textTheme.labelSmall ?? const TextStyle()).copyWith(color: scheme.onSurfaceVariant),
+        ),
+      ),
+    );
+  }
+}
+
+class _BarPainter extends CustomPainter {
+  _BarPainter({
+    required this.bars,
+    required this.color,
+    required this.goodColor,
+    required this.target,
+    required this.track,
+    required this.targetColor,
+    required this.labelStyle,
+  });
+
+  final List<(String, double?)> bars;
+  final Color color, goodColor, track, targetColor;
+  final double? target;
+  final TextStyle labelStyle;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (bars.isEmpty) return;
+    const bottom = 20.0, top = 6.0;
+    final h = size.height - top - bottom;
+    final values = [for (final b in bars) b.$2 ?? 0];
+    final maxV = math.max(values.reduce(math.max), target ?? 0) * 1.12;
+    if (maxV <= 0) return;
+    final slot = size.width / bars.length;
+    final w = math.min(28.0, slot * 0.62);
+    for (var i = 0; i < bars.length; i++) {
+      final cx = slot * i + slot / 2;
+      final rect = Rect.fromLTWH(cx - w / 2, top, w, h);
+      canvas.drawRRect(RRect.fromRectAndRadius(rect, Radius.circular(w / 3)), Paint()..color = track);
+      final v = bars[i].$2;
+      if (v != null && v > 0) {
+        final bh = h * v / maxV;
+        final good = target != null && v >= target! * 0.97;
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Rect.fromLTWH(cx - w / 2, top + h - bh, w, bh), Radius.circular(w / 3)),
+          Paint()..color = good ? goodColor : color,
+        );
+      }
+      final tp = TextPainter(
+        text: TextSpan(text: bars[i].$1, style: labelStyle),
+        textAlign: TextAlign.center,
+        textDirection: TextDirection.ltr,
+      )..layout(minWidth: slot, maxWidth: slot);
+      tp.paint(canvas, Offset(slot * i, size.height - bottom + 5));
+    }
+    if (target != null) {
+      final y = top + h * (1 - target! / maxV);
+      final p = Paint()
+        ..color = targetColor.withValues(alpha: 0.7)
+        ..strokeWidth = 1.4;
+      for (var x = 0.0; x < size.width; x += 8) {
+        canvas.drawLine(Offset(x, y), Offset(math.min(x + 4, size.width), y), p);
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BarPainter old) => old.bars != bars || old.target != target || old.color != color;
+}

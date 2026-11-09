@@ -122,7 +122,7 @@ Program? suggestProgram(List<Program> scheduled, List<WorkoutSession> sessions) 
 /// Прогноз по копилке или долгу в месяцах. null, если посчитать нельзя.
 ({int? months, String text}) fundForecast(Fund f, double value, {double? recentMonthly}) {
   if (f.kind == FundKind.debt) {
-    if (value <= 0) return (months: 0, text: 'Долг закрыт 🎉');
+    if (value <= 0) return (months: 0, text: 'Долг закрыт!');
     final pay = f.monthlyAmount;
     if (pay == null || pay <= 0) return (months: null, text: 'Укажи платёж в месяц, чтобы увидеть срок');
     final m = monthsToPayOff(balance: value, monthlyPayment: pay, annualRatePercent: f.interestRate);
@@ -133,7 +133,7 @@ Program? suggestProgram(List<Program> scheduled, List<WorkoutSession> sessions) 
   }
   final target = f.target;
   if (target == null) return (months: null, text: '');
-  if (value >= target) return (months: 0, text: 'Накоплено 🎉');
+  if (value >= target) return (months: 0, text: 'Накоплено!');
   final planned = f.monthlyAmount;
   final pace = (planned != null && planned > 0) ? planned : recentMonthly;
   if (pace == null || pace <= 0) return (months: null, text: 'Укажи взнос в месяц, чтобы увидеть срок');

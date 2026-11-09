@@ -143,7 +143,7 @@ class _GoalCard extends StatelessWidget {
                   spacing: 6,
                   runSpacing: 6,
                   children: [
-                    if (reached) const Pill('🎉 Достигнута', color: Accent.habits),
+                    if (reached) const Pill('Достигнута', icon: Icons.emoji_events_rounded, color: Accent.habits),
                     if (left != null)
                       Pill(
                         'до ${formatDay(g.deadline!, withYear: true)} · ${left >= 0 ? 'осталось $left дн.' : 'срок прошёл'}',
@@ -261,7 +261,7 @@ class _GoalEditScreenState extends State<GoalEditScreen> {
                   initialValue: trackerMap.containsKey(_trackerId) ? _trackerId : null,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Трекер'),
-                  items: [for (final t in trackers) DropdownMenuItem(value: t.id, child: Text('${t.icon} ${t.name}'))],
+                  items: [for (final t in trackers) DropdownMenuItem(value: t.id, child: Text(t.name))],
                   onChanged: (id) => setState(() {
                     _trackerId = id;
                     final t = trackerMap[id];
@@ -274,7 +274,7 @@ class _GoalEditScreenState extends State<GoalEditScreen> {
                   initialValue: funds.any((f) => f.id == _fundId) ? _fundId : null,
                   isExpanded: true,
                   decoration: const InputDecoration(labelText: 'Копилка или долг'),
-                  items: [for (final f in funds) DropdownMenuItem(value: f.id, child: Text('${f.icon} ${f.name}'))],
+                  items: [for (final f in funds) DropdownMenuItem(value: f.id, child: Text(f.name))],
                   onChanged: (id) => setState(() {
                     _fundId = id;
                     final f = funds.where((f) => f.id == id).firstOrNull;

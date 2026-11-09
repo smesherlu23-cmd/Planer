@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'common.dart';
+import 'food_screen.dart';
 import 'goals_screen.dart';
 import 'journal_screen.dart';
 import 'reminders_screen.dart';
 import 'report_screen.dart';
 import 'settings_screen.dart';
+import 'sleep_screen.dart';
 import 'theme.dart';
 import 'trackers_screen.dart';
 
@@ -16,6 +18,20 @@ class MoreScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     void open(Widget screen) => Navigator.push(context, MaterialPageRoute(builder: (_) => screen));
     final tiles = [
+      _Tile(
+        icon: Icons.bedtime_rounded,
+        color: Accent.sleep,
+        title: 'Сон',
+        subtitle: 'Отбой, подъём, серия',
+        onTap: () => open(const SleepScreen()),
+      ),
+      _Tile(
+        icon: Icons.restaurant_rounded,
+        color: Accent.food,
+        title: 'Питание',
+        subtitle: 'Калории, белок, вода',
+        onTap: () => open(const FoodScreen()),
+      ),
       _Tile(
         icon: Icons.show_chart_rounded,
         color: Accent.trackers,

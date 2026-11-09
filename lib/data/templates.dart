@@ -9,6 +9,8 @@ import 'package:drift/drift.dart';
 import 'database.dart';
 import 'dates.dart';
 import '../logic/calc.dart';
+import '../logic/food.dart';
+import '../logic/sleep.dart';
 import 'queries.dart';
 
 const _mon = 1, _wed = 3, _fri = 5, _sun = 7;
@@ -24,7 +26,8 @@ const templates = [
   TemplateInfo(
     'my_plan',
     'Мой план',
-    'Режим сна, код, спина, тренировки A и B, вес и силовые цели, кредит, копилки на права и Civic, итог дня и обзор недели.',
+    'Сон с отбоем в 23:00, питание на набор массы, код, спина, тренировки A и B, вес и силовые цели, кредит, '
+        'копилки на права и Civic, итог дня и обзор недели.',
   ),
   TemplateInfo('basic', 'Чистый лист', 'Только категории расходов и доходов. Всё остальное добавишь сам.'),
 ];
@@ -48,17 +51,17 @@ Future<void> _basicCategories(AppDatabase db) async {
   final existing = await db.select(db.categories).get();
   if (existing.isNotEmpty) return;
   const expenses = [
-    ('Еда и перекусы', '🍌'),
-    ('Одежда', '👕'),
-    ('Уход и здоровье', '🧴'),
-    ('Транспорт', '🚌'),
-    ('Связь и подписки', '📱'),
-    ('Игры и развлечения', '🎮'),
-    ('Учёба', '📚'),
-    ('Подарки', '🎁'),
-    ('Другое', '💸'),
+    ('Еда и перекусы', 'fruit'),
+    ('Одежда', 'clothes'),
+    ('Уход и здоровье', 'soap'),
+    ('Транспорт', 'bus'),
+    ('Связь и подписки', 'phone'),
+    ('Игры и развлечения', 'game'),
+    ('Учёба', 'book'),
+    ('Подарки', 'gift'),
+    ('Другое', 'payments'),
   ];
-  const incomes = [('Зарплата', '💰'), ('Другой доход', '💵')];
+  const incomes = [('Зарплата', 'salary'), ('Другой доход', 'payments')];
   for (final (name, icon) in expenses) {
     await db.saveCategory(CategoriesCompanion.insert(name: name, icon: Value(icon)));
   }
@@ -74,7 +77,7 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   final weight = await db.saveTracker(
     TrackersCompanion.insert(
       name: 'Вес',
-      icon: const Value('⚖️'),
+      icon: const Value('scale'),
       unit: const Value('кг'),
       kind: TrackerKind.number,
       daysMask: Value(maskFromWeekdays([_sun])),
@@ -84,20 +87,20 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   final code = await db.saveTracker(
     TrackersCompanion.insert(
       name: 'Время кода',
-      icon: const Value('⏱️'),
+      icon: const Value('timer'),
       unit: const Value('мин'),
       kind: TrackerKind.duration,
       daysMask: Value(maskFromWeekdays([1, 2, 3, 4, 5, 6])),
     ),
   );
   final pullups = await db.saveTracker(
-    TrackersCompanion.insert(name: 'Подтягивания подряд', icon: const Value('💪'), unit: const Value('раз'), kind: TrackerKind.number),
+    TrackersCompanion.insert(name: 'Подтягивания подряд', icon: const Value('fitness'), unit: const Value('раз'), kind: TrackerKind.number),
   );
   final pushups = await db.saveTracker(
-    TrackersCompanion.insert(name: 'Отжимания подряд', icon: const Value('🙌'), unit: const Value('раз'), kind: TrackerKind.number),
+    TrackersCompanion.insert(name: 'Отжимания подряд', icon: const Value('gymnastics'), unit: const Value('раз'), kind: TrackerKind.number),
   );
   await db.saveTracker(
-    TrackersCompanion.insert(name: 'Faceit', icon: const Value('🎯'), unit: const Value('ELO'), kind: TrackerKind.number),
+    TrackersCompanion.insert(name: 'Faceit', icon: const Value('target'), unit: const Value('ELO'), kind: TrackerKind.number),
   );
 
   // Стартовые значения, которые уже известны.
@@ -105,12 +108,42 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   await db.addEntry(pullups, 10, day: today, note: 'старт');
   await db.addEntry(pushups, 15, day: today, note: 'старт');
 
-  // ----- Привычки: первый месяц только три опорные -----
-  await db.saveHabit(HabitsCompanion.insert(name: 'Отбой до 23:00', icon: const Value('😴'), minimumText: const Value('Лечь до полуночи')));
+  // ----- Сон: отбой в 23:00, подъём в 7:00, 8 часов. Напомнить за 30 минут -----
+  await db.setSetting(SleepGoals.keyBed, '${23 * 60}');
+  await db.setSetting(SleepGoals.keyWake, '${7 * 60}');
+  await db.setSetting(SleepGoals.keyDuration, '${8 * 60}');
+  await db.setSetting(SleepGoals.keyRemind, '30');
+  await db.setSetting(SleepGoals.keyOn, '1');
+
+  // ----- Питание на набор: около 3000 ккал и 130 г белка -----
+  await db.setSetting(FoodGoals.keyKcal, '3000');
+  await db.setSetting(FoodGoals.keyProtein, '130');
+  await db.setSetting(FoodGoals.keyWater, '2000');
+  await db.setSetting(FoodGoals.keyGlass, '250');
+  await db.setSetting(FoodGoals.keyMode, FoodMode.gain.name);
+  await db.setSetting(FoodGoals.keyWeight, '$weight');
+  await db.setSetting(FoodGoals.keyOn, '1');
+  const foods = [
+    ('Завтрак: овсянка на молоке, банан, 2 яйца', 'breakfast', 700, 30),
+    ('Перекус: банан, йогурт, орехи', 'fruit', 400, 12),
+    ('Обед: гречка или рис с курицей', 'lunch', 750, 50),
+    ('Бутерброды с арахисовой пастой и банан', 'bakery', 500, 15),
+    ('Ужин: макароны с яйцами или тунцом', 'dinner', 650, 35),
+    ('Творог 200 г', 'milk', 250, 30),
+    ('Коктейль: молоко, банан, овсянка, арахисовая паста', 'blender', 700, 28),
+    ('Стакан молока', 'milk', 130, 7),
+    ('Банан', 'fruit', 100, 1),
+    ('2 яйца', 'egg', 150, 12),
+  ];
+  for (final (name, icon, kcal, protein) in foods) {
+    await db.saveFood(FoodsCompanion.insert(name: name, icon: Value(icon), kcal: kcal.toDouble(), protein: Value(protein.toDouble())));
+  }
+
+  // ----- Привычки: первый месяц только две опорные, режим сна на экране «Сон» -----
   await db.saveHabit(
     HabitsCompanion.insert(
       name: 'Программирование',
-      icon: const Value('💻'),
+      icon: const Value('code'),
       daysMask: Value(maskFromWeekdays([1, 2, 3, 4, 5, 6])),
       reminderMinutes: const Value(18 * 60 + 45),
       minimumText: const Value('20 минут кода'),
@@ -120,7 +153,7 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   await db.saveHabit(
     HabitsCompanion.insert(
       name: 'Спина и осанка',
-      icon: const Value('🧘'),
+      icon: const Value('yoga'),
       minimumText: const Value('Вис на турнике и разгибание на валике'),
     ),
   );
@@ -129,15 +162,15 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   final loan = await db.saveFund(
     FundsCompanion.insert(
       name: 'Кредит',
-      icon: const Value('🏦'),
+      icon: const Value('bank'),
       kind: FundKind.debt,
       initialAmount: const Value(120000),
       monthlyAmount: const Value(12000),
     ),
   );
-  await db.saveFund(FundsCompanion.insert(name: 'Права', icon: const Value('🪪'), kind: FundKind.savings, target: const Value(60000)));
+  await db.saveFund(FundsCompanion.insert(name: 'Права', icon: const Value('license'), kind: FundKind.savings, target: const Value(60000)));
   final civic = await db.saveFund(
-    FundsCompanion.insert(name: 'Honda Civic', icon: const Value('🚗'), kind: FundKind.savings, target: const Value(300000)),
+    FundsCompanion.insert(name: 'Honda Civic', icon: const Value('car'), kind: FundKind.savings, target: const Value(300000)),
   );
 
   // ----- Цели -----

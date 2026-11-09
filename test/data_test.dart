@@ -18,7 +18,8 @@ void main() {
 
   test('шаблон «Мой план» создаёт записи и не падает', () async {
     await applyTemplate(db, 'my_plan', today: 20261109);
-    expect((await db.select(db.habits).get()).length, 3);
+    // Отбой теперь ведёт раздел «Сон», отдельной привычки нет.
+    expect((await db.select(db.habits).get()).length, 2);
     expect((await db.select(db.trackers).get()).length, 5);
     expect((await db.select(db.goals).get()).length, 5);
     expect((await db.select(db.funds).get()).length, 3);
@@ -26,6 +27,10 @@ void main() {
     expect((await db.select(db.programExercises).get()).length, 16);
     expect((await db.select(db.categories).get()).length, 11);
     expect((await db.select(db.reminders).get()).length, 2);
+    expect((await db.select(db.foods).get()).length, 10);
+    final settings = await db.watchAllSettings().first;
+    expect(settings['sleep_on'], '1');
+    expect(settings['food_kcal'], '3000');
   });
 
   test('запись в трекер отмечает привязанную привычку', () async {

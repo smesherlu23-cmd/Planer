@@ -3,10 +3,12 @@ import 'package:flutter/material.dart';
 
 import '../data/database.dart';
 import '../data/dates.dart';
+import '../data/icon_keys.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
 import 'charts.dart';
 import 'common.dart';
+import 'icons.dart';
 import 'theme.dart';
 
 class HabitsScreen extends StatelessWidget {
@@ -97,7 +99,7 @@ class _HabitCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  EmojiAvatar(habit.icon, color: Accent.habits),
+                  ItemIcon(habit.icon),
                   const SizedBox(width: 14),
                   Expanded(
                     child: Column(
@@ -115,7 +117,7 @@ class _HabitCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (streak > 0) Pill('🔥 $streak', color: Accent.workouts),
+                  if (streak > 0) Pill('$streak', icon: Icons.local_fire_department_rounded, color: Accent.workouts),
                 ],
               ),
               const SizedBox(height: 14),
@@ -200,7 +202,8 @@ class HabitDetailScreen extends StatelessWidget {
         final minimums = logs.where((l) => l.minimum).length;
         return Scaffold(
           appBar: AppBar(
-            title: Text('${h.icon} ${h.name}'),
+            leading: ItemIcon(h.icon, size: 40),
+            title: Text(h.name),
             actions: [
               IconButton(
                 icon: const Icon(Icons.edit_outlined),
@@ -216,7 +219,7 @@ class HabitDetailScreen extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 4, 20, 8),
                 child: Row(
                   children: [
-                    EmojiAvatar(h.icon, color: Accent.habits, size: 56),
+                    ItemIcon(h.icon, size: 56),
                     const SizedBox(width: 16),
                     Expanded(
                       child: Column(
@@ -321,7 +324,7 @@ class HabitEditScreen extends StatefulWidget {
 
 class _HabitEditScreenState extends State<HabitEditScreen> {
   late final _name = TextEditingController(text: widget.habit?.name ?? '');
-  late final _icon = TextEditingController(text: widget.habit?.icon ?? '✅');
+  late String _icon = iconKeyFor(widget.habit?.icon) ?? 'check';
   late final _minimum = TextEditingController(text: widget.habit?.minimumText ?? '');
   late int _mask = widget.habit?.daysMask ?? everyDay;
   late int? _reminder = widget.habit?.reminderMinutes;
@@ -337,7 +340,7 @@ class _HabitEditScreenState extends State<HabitEditScreen> {
       HabitsCompanion(
         id: _isNew ? const Value.absent() : Value(widget.habit!.id),
         name: Value(name),
-        icon: Value(emptyToNull(_icon.text) ?? '✅'),
+        icon: Value(_icon),
         daysMask: Value(_mask),
         reminderMinutes: Value(_reminder),
         minimumText: Value(emptyToNull(_minimum.text)),
@@ -358,7 +361,7 @@ class _HabitEditScreenState extends State<HabitEditScreen> {
         children: [
           Row(
             children: [
-              EmojiField(controller: _icon),
+              IconField(value: _icon, onChanged: (v) => setState(() => _icon = v)),
               const SizedBox(width: 12),
               Expanded(
                 child: TextField(
@@ -396,7 +399,7 @@ class _HabitEditScreenState extends State<HabitEditScreen> {
                 ),
                 items: [
                   const DropdownMenuItem(value: null, child: Text('Нет, отмечаю сам')),
-                  for (final t in trackers) DropdownMenuItem(value: t.id, child: Text('${t.icon} ${t.name}')),
+                  for (final t in trackers) DropdownMenuItem(value: t.id, child: Text(t.name)),
                 ],
                 onChanged: (v) => setState(() => _trackerId = v),
               );

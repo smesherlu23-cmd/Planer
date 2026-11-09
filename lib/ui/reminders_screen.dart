@@ -5,7 +5,7 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import 'common.dart';
-import 'theme.dart';
+import 'icons.dart';
 
 class RemindersScreen extends StatelessWidget {
   const RemindersScreen({super.key});
@@ -28,8 +28,8 @@ class RemindersScreen extends StatelessWidget {
           final trackers = (v[2] as List<Tracker>).where((t) => t.reminderMinutes != null && t.daysMask != 0).toList();
           final programs = (v[3] as List<Program>).where((p) => p.reminderMinutes != null && p.daysMask != 0).toList();
           final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-          Widget linked(String emoji, Color color, String name, int minutes, int mask) => ListTile(
-            leading: EmojiAvatar(emoji, size: 40, color: color),
+          Widget linked(String icon, String fallback, String name, int minutes, int mask) => ListTile(
+            leading: ItemIcon(icon, size: 40, fallback: fallback),
             title: Text(name),
             subtitle: Text(maskLabel(mask)),
             trailing: Text(
@@ -57,9 +57,9 @@ class RemindersScreen extends StatelessWidget {
                 ),
                 GroupCard(
                   children: [
-                    for (final h in habits) linked(h.icon, Accent.habits, h.name, h.reminderMinutes!, h.daysMask),
-                    for (final t in trackers) linked(t.icon, Accent.trackers, t.name, t.reminderMinutes!, t.daysMask),
-                    for (final p in programs) linked('🏋️', Accent.workouts, p.name, p.reminderMinutes!, p.daysMask),
+                    for (final h in habits) linked(h.icon, 'check', h.name, h.reminderMinutes!, h.daysMask),
+                    for (final t in trackers) linked(t.icon, 'chart', t.name, t.reminderMinutes!, t.daysMask),
+                    for (final p in programs) linked('fitness', 'fitness', p.name, p.reminderMinutes!, p.daysMask),
                   ],
                 ),
               ],

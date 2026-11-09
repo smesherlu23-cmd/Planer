@@ -14,6 +14,9 @@ abstract final class Accent {
   static const report = Color(0xFF06B6D4);
   static const reminders = Color(0xFFEAB308);
   static const settings = Color(0xFF64748B);
+  static const sleep = Color(0xFF6D5BF0);
+  static const food = Color(0xFF14B8A6);
+  static const water = Color(0xFF0EA5E9);
 }
 
 const _primary = Color(0xFF6366F1);

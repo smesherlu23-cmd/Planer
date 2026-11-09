@@ -6,7 +6,10 @@ import '../data/dates.dart';
 import '../logic/calc.dart';
 import '../logic/report.dart';
 import 'common.dart';
+import 'food_screen.dart';
+import 'icons.dart';
 import 'journal_screen.dart';
+import 'sleep_screen.dart';
 import 'theme.dart';
 
 Stream<WeekReport> watchWeekReport(AppDatabase db, int monday) async* {
@@ -89,10 +92,7 @@ class _ReportScreenState extends State<ReportScreen> {
                         ),
                         const SizedBox(width: 10),
                         Expanded(
-                          child: HeroStat(
-                            label: 'Настроение',
-                            value: r.moodAvg == null ? '—' : '${moodEmoji(r.moodAvg!.round())} ${formatNumber(r.moodAvg!)}',
-                          ),
+                          child: HeroStat(label: 'Настроение', value: r.moodAvg == null ? '—' : '${formatNumber(r.moodAvg!)} из 10'),
                         ),
                       ],
                     ),
@@ -130,7 +130,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   children: [
                     for (final h in r.habits)
                       ListTile(
-                        leading: EmojiAvatar(h.habit.icon, size: 40, color: Accent.habits),
+                        leading: ItemIcon(h.habit.icon, size: 40),
                         title: Text(h.habit.name),
                         subtitle: h.minimum > 0 ? Text('минимумом: ${h.minimum}') : null,
                         trailing: Pill('${h.done} из ${h.planned}', color: h.planned > 0 && h.done >= h.planned ? Accent.habits : null),
@@ -144,7 +144,7 @@ class _ReportScreenState extends State<ReportScreen> {
                   children: [
                     for (final t in r.trackers)
                       ListTile(
-                        leading: EmojiAvatar(t.tracker.icon, size: 40, color: Accent.trackers),
+                        leading: ItemIcon(t.tracker.icon, size: 40, fallback: 'chart'),
                         title: Text(t.tracker.name),
                         subtitle: Text(t.label),
                       ),
@@ -160,6 +160,32 @@ class _ReportScreenState extends State<ReportScreen> {
                         leading: const IconBadge(Icons.fitness_center_rounded, color: Accent.workouts, soft: true),
                         title: Text(name),
                       ),
+                  ],
+                ),
+              ],
+              if (r.sleep != null && r.sleep!.stats.nights > 0) ...[
+                const SectionTitle('Сон'),
+                _StatsCard(
+                  icon: Icons.bedtime_rounded,
+                  color: Accent.sleep,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SleepScreen())),
+                  stats: [
+                    ('В среднем', formatDuration(r.sleep!.stats.avgDuration!)),
+                    ('Отбой', formatMinutes(r.sleep!.stats.avgBed!)),
+                    ('Вовремя', '${r.sleep!.stats.onTime} из ${r.sleep!.stats.nights}'),
+                  ],
+                ),
+              ],
+              if (r.food != null && r.food!.days > 0) ...[
+                const SectionTitle('Питание'),
+                _StatsCard(
+                  icon: Icons.restaurant_rounded,
+                  color: Accent.food,
+                  onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FoodScreen())),
+                  stats: [
+                    ('Ккал в день', formatNumber(r.food!.avgKcal, maxDecimals: 0)),
+                    ('Белок', '${formatNumber(r.food!.avgProtein, maxDecimals: 0)} г'),
+                    ('В норме', '${r.food!.onTarget} из ${r.food!.days}'),
                   ],
                 ),
               ],
@@ -186,7 +212,7 @@ class _ReportScreenState extends State<ReportScreen> {
                       ),
                     for (final (f, sum) in r.fundMoves)
                       ListTile(
-                        leading: EmojiAvatar(f.icon, size: 40, color: Accent.money),
+                        leading: ItemIcon(f.icon, size: 40, fallback: 'savings'),
                         title: Text(f.name),
                         subtitle: Text(f.kind == FundKind.debt ? 'выплачено' : (sum >= 0 ? 'отложено' : 'снято')),
                         trailing: Text(formatMoney(sum.abs()), style: const TextStyle(fontWeight: FontWeight.w700)),
@@ -205,6 +231,52 @@ class _ReportScreenState extends State<ReportScreen> {
             ],
           );
         },
+      ),
+    );
+  }
+}
+
+/// Карточка с иконкой и тремя цифрами в ряд.
+class _StatsCard extends StatelessWidget {
+  const _StatsCard({required this.icon, required this.color, required this.stats, required this.onTap});
+  final IconData icon;
+  final Color color;
+  final List<(String, String)> stats;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Card(
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(14, 14, 8, 14),
+          child: Row(
+            children: [
+              ColorIcon(icon, color: color),
+              const SizedBox(width: 12),
+              for (final (label, value) in stats)
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Padding(
+                        padding: const EdgeInsets.only(right: 8),
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(value, style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+                        ),
+                      ),
+                      Text(label, style: theme.textTheme.bodySmall?.copyWith(color: theme.colorScheme.onSurfaceVariant)),
+                    ],
+                  ),
+                ),
+              Icon(Icons.chevron_right_rounded, color: theme.colorScheme.onSurfaceVariant),
+            ],
+          ),
+        ),
       ),
     );
   }

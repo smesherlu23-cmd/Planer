@@ -228,30 +228,6 @@ class EmptyHint extends StatelessWidget {
   }
 }
 
-/// Эмодзи в скруглённом квадрате с лёгкой подложкой цвета раздела.
-class EmojiAvatar extends StatelessWidget {
-  const EmojiAvatar(this.emoji, {super.key, this.size = 44, this.color});
-  final String emoji;
-  final double size;
-  final Color? color;
-
-  @override
-  Widget build(BuildContext context) {
-    final scheme = Theme.of(context).colorScheme;
-    final tint = color ?? scheme.primary;
-    return Container(
-      width: size,
-      height: size,
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: Color.alphaBlend(tint.withValues(alpha: 0.14), scheme.surfaceContainer),
-        borderRadius: BorderRadius.circular(size * 0.32),
-      ),
-      child: Text(emoji, style: TextStyle(fontSize: size * 0.48, height: 1.15)),
-    );
-  }
-}
-
 /// Значок-иконка в цветном скруглённом квадрате, как в настройках телефона.
 class IconBadge extends StatelessWidget {
   const IconBadge(this.icon, {super.key, required this.color, this.size = 40, this.soft = false});
@@ -413,25 +389,63 @@ class CheckDot extends StatelessWidget {
   }
 }
 
-/// Маленькая плашка с текстом: «🔥 9», «минимум».
+/// Маленькая плашка с текстом и иконкой: серия, «минимум», время.
 class Pill extends StatelessWidget {
-  const Pill(this.text, {super.key, this.color});
+  const Pill(this.text, {super.key, this.color, this.icon});
   final String text;
   final Color? color;
+  final IconData? icon;
 
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
     final c = color ?? scheme.onSurfaceVariant;
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      padding: EdgeInsets.fromLTRB(icon == null ? 8 : 6, 3, 8, 3),
       decoration: BoxDecoration(color: c.withValues(alpha: 0.12), borderRadius: BorderRadius.circular(8)),
-      child: Text(
-        text,
-        style: Theme.of(context).textTheme.labelMedium?.copyWith(color: c, fontWeight: FontWeight.w600),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          if (icon != null) ...[Icon(icon, size: 14, color: c), const SizedBox(width: 3)],
+          Flexible(
+            child: Text(
+              text,
+              style: Theme.of(context).textTheme.labelMedium?.copyWith(color: c, fontWeight: FontWeight.w600),
+            ),
+          ),
+        ],
       ),
     );
   }
+}
+
+/// Перерисовывает [builder] раз в [period]: для идущих таймеров и «через сколько отбой».
+class Every extends StatefulWidget {
+  const Every(this.period, {super.key, required this.builder});
+  final Duration period;
+  final WidgetBuilder builder;
+
+  @override
+  State<Every> createState() => _EveryState();
+}
+
+class _EveryState extends State<Every> {
+  late final Timer _timer = Timer.periodic(widget.period, (_) => setState(() {}));
+
+  @override
+  void initState() {
+    super.initState();
+    _timer;
+  }
+
+  @override
+  void dispose() {
+    _timer.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => widget.builder(context);
 }
 
 /// Карточка со списком строк, разделённых тонкой линией.
@@ -653,25 +667,6 @@ class NumberField extends StatelessWidget {
       keyboardType: TextInputType.numberWithOptions(decimal: true, signed: allowNegative),
       inputFormatters: [FilteringTextInputFormatter.allow(RegExp(allowNegative ? r'[-0-9.,\s]' : r'[0-9.,\s]'))],
       decoration: InputDecoration(labelText: label, suffixText: suffix),
-    );
-  }
-}
-
-/// Поле для одного эмодзи.
-class EmojiField extends StatelessWidget {
-  const EmojiField({super.key, required this.controller});
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    return SizedBox(
-      width: 72,
-      child: TextField(
-        controller: controller,
-        textAlign: TextAlign.center,
-        style: const TextStyle(fontSize: 24),
-        decoration: const InputDecoration(labelText: 'Значок'),
-      ),
     );
   }
 }

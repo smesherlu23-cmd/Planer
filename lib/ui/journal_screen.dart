@@ -5,6 +5,7 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import 'common.dart';
+import 'icons.dart';
 import 'theme.dart';
 
 String journalKindLabel(JournalKind k) => switch (k) {
@@ -13,10 +14,10 @@ String journalKindLabel(JournalKind k) => switch (k) {
   JournalKind.note => 'Заметка',
 };
 
-String journalKindEmoji(JournalKind k) => switch (k) {
-  JournalKind.day => '📝',
-  JournalKind.week => '📊',
-  JournalKind.note => '💭',
+IconData journalKindIcon(JournalKind k) => switch (k) {
+  JournalKind.day => Icons.edit_note_rounded,
+  JournalKind.week => Icons.insights_rounded,
+  JournalKind.note => Icons.sticky_note_2_rounded,
 };
 
 String _kindHint(JournalKind k) => switch (k) {
@@ -25,13 +26,15 @@ String _kindHint(JournalKind k) => switch (k) {
   JournalKind.note => 'Любая мысль или идея',
 };
 
-String moodEmoji(int mood) => mood <= 3
-    ? '😞'
-    : mood <= 5
-    ? '😕'
-    : mood <= 7
-    ? '🙂'
-    : '😄';
+IconData moodIcon(int mood) => mood <= 2
+    ? Icons.sentiment_very_dissatisfied_rounded
+    : mood <= 4
+    ? Icons.sentiment_dissatisfied_rounded
+    : mood <= 6
+    ? Icons.sentiment_neutral_rounded
+    : mood <= 8
+    ? Icons.sentiment_satisfied_rounded
+    : Icons.sentiment_very_satisfied_rounded;
 
 /// Цвет настроения: от красного к зелёному.
 Color moodColor(int mood) => Color.lerp(const Color(0xFFEF4444), const Color(0xFF22C55E), (mood - 1) / 9)!;
@@ -81,7 +84,8 @@ class _JournalScreenState extends State<JournalScreen> {
                 for (final k in JournalKind.values) ...[
                   const SizedBox(width: 8),
                   ChoiceChip(
-                    label: Text('${journalKindEmoji(k)} ${journalKindLabel(k)}'),
+                    avatar: Icon(journalKindIcon(k), color: Accent.journal),
+                    label: Text(journalKindLabel(k)),
                     showCheckmark: false,
                     selected: _filter == k,
                     onSelected: (_) => setState(() => _filter = k),
@@ -134,7 +138,7 @@ class _JournalScreenState extends State<JournalScreen> {
           children: [
             for (final k in JournalKind.values)
               ListTile(
-                leading: EmojiAvatar(journalKindEmoji(k), size: 40, color: Accent.journal),
+                leading: ColorIcon(journalKindIcon(k), size: 40, color: Accent.journal),
                 title: Text(journalKindLabel(k)),
                 subtitle: Text(_kindHint(k)),
                 onTap: () => Navigator.pop(context, k),
@@ -175,7 +179,7 @@ class _EntryCard extends StatelessWidget {
             children: [
               Row(
                 children: [
-                  EmojiAvatar(journalKindEmoji(e.kind), size: 40, color: Accent.journal),
+                  ColorIcon(journalKindIcon(e.kind), size: 40, color: Accent.journal),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -186,7 +190,7 @@ class _EntryCard extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (e.mood != null) Pill('${moodEmoji(e.mood!)} ${e.mood}', color: moodColor(e.mood!)),
+                  if (e.mood != null) Pill('${e.mood}', icon: moodIcon(e.mood!), color: moodColor(e.mood!)),
                 ],
               ),
               if (preview.isNotEmpty) ...[
@@ -303,10 +307,7 @@ class _JournalEditScreenState extends State<JournalEditScreen> {
         padding: const EdgeInsets.all(16),
         children: [
           if (widget.kind != JournalKind.note) ...[
-            Text(
-              _mood == null ? 'Настроение' : 'Настроение ${moodEmoji(_mood!)} $_mood из 10',
-              style: Theme.of(context).textTheme.titleSmall,
-            ),
+            Text(_mood == null ? 'Настроение' : 'Настроение: $_mood из 10', style: Theme.of(context).textTheme.titleSmall),
             const SizedBox(height: 10),
             MoodPicker(value: _mood, onChanged: (m) => setState(() => _mood = m)),
             const SizedBox(height: 20),

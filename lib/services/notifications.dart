@@ -17,6 +17,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../data/database.dart';
 import '../data/dates.dart';
+import '../logic/sleep.dart';
 
 /// Одно повторяющееся напоминание: в какие дни недели и во сколько.
 class PlannedNotification {
@@ -36,6 +37,7 @@ List<PlannedNotification> planNotifications({
   required List<Tracker> trackers,
   required List<Program> programs,
   required List<Reminder> reminders,
+  SleepGoals? sleep,
 }) {
   final result = <PlannedNotification>[];
   for (final h in habits) {
@@ -43,7 +45,7 @@ List<PlannedNotification> planNotifications({
     result.add(
       PlannedNotification(
         baseId: 100000 + h.id,
-        title: '${h.icon} ${h.name}',
+        title: h.name,
         body: h.minimumText == null ? 'Пора сделать и отметить.' : 'Если день тяжёлый, хватит минимума: ${h.minimumText}',
         daysMask: h.daysMask,
         minutes: h.reminderMinutes!,
@@ -55,7 +57,7 @@ List<PlannedNotification> planNotifications({
     result.add(
       PlannedNotification(
         baseId: 200000 + t.id,
-        title: '${t.icon} ${t.name}',
+        title: t.name,
         body: 'Запиши значение за сегодня.',
         daysMask: t.daysMask,
         minutes: t.reminderMinutes!,
@@ -77,7 +79,7 @@ List<PlannedNotification> planNotifications({
     result.add(
       PlannedNotification(
         baseId: 300000 + minutes * 10 + weekday,
-        title: '🏋️ Тренировка',
+        title: 'Тренировка',
         body: names.length == 1 ? names.first : 'Одна из: ${names.join(', ')}',
         daysMask: maskFromWeekdays([weekday]),
         minutes: minutes,
@@ -87,6 +89,18 @@ List<PlannedNotification> planNotifications({
   for (final r in reminders) {
     if (!r.enabled || r.daysMask == 0) continue;
     result.add(PlannedNotification(baseId: 400000 + r.id, title: r.title, body: r.body ?? '', daysMask: r.daysMask, minutes: r.minutes));
+  }
+  final before = sleep?.remindBefore;
+  if (sleep != null && before != null) {
+    result.add(
+      PlannedNotification(
+        baseId: 500000,
+        title: 'Скоро отбой',
+        body: 'Через ${formatDuration(before)} спать, отбой в ${formatMinutes(sleep.bed)}. Отложи телефон и нажми «Ложусь спать».',
+        daysMask: everyDay,
+        minutes: (sleep.bed - before) % (24 * 60),
+      ),
+    );
   }
   return result;
 }
@@ -123,7 +137,7 @@ class NotificationService {
     }
     // Любое изменение расписаний пересоздаёт напоминания.
     _sub = db
-        .tableUpdates(TableUpdateQuery.onAllTables([db.habits, db.trackers, db.programs, db.reminders]))
+        .tableUpdates(TableUpdateQuery.onAllTables([db.habits, db.trackers, db.programs, db.reminders, db.settings]))
         .listen((_) => _scheduleSoon());
     await reschedule();
   }
@@ -183,6 +197,7 @@ class NotificationService {
       trackers: await db.select(db.trackers).get(),
       programs: await db.select(db.programs).get(),
       reminders: await db.select(db.reminders).get(),
+      sleep: SleepGoals.from({for (final r in await db.select(db.settings).get()) r.key: r.value}),
     );
     final mode = await canExact() ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle;
     await _plugin.cancelAll();

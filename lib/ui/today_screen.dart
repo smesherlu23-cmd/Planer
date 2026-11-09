@@ -4,12 +4,17 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
+import '../logic/food.dart';
+import '../logic/sleep.dart';
 import '../logic/values.dart';
 import 'common.dart';
+import 'food_screen.dart';
+import 'icons.dart';
 import 'habits_screen.dart';
 import 'journal_screen.dart';
 import 'money_screen.dart';
 import 'report_screen.dart';
+import 'sleep_screen.dart';
 import 'theme.dart';
 import 'trackers_screen.dart';
 import 'workouts_screen.dart';
@@ -64,6 +69,9 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
           db.watchSessions(),
           db.watchJournalFor(JournalKind.day, today),
           db.watchAllSettings(),
+          db.watchSleep(from: today),
+          db.watchMeals(from: today, to: today),
+          db.watchWater(from: today, to: today),
         ],
         builder: (context, v) => _TodayBody(
           today: today,
@@ -75,6 +83,8 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
           sessions: v[5] as List<WorkoutSession>,
           dayNote: v[6] as JournalEntry?,
           settings: v[7] as Map<String, String>,
+          lastNight: (v[8] as List<SleepLog>).firstOrNull,
+          food: dayFood(today, v[9] as List<Meal>, v[10] as List<WaterLog>),
         ),
       ),
     );
@@ -92,6 +102,8 @@ class _TodayBody extends StatelessWidget {
     required this.sessions,
     required this.dayNote,
     required this.settings,
+    required this.lastNight,
+    required this.food,
   });
 
   final int today;
@@ -103,10 +115,14 @@ class _TodayBody extends StatelessWidget {
   final List<WorkoutSession> sessions;
   final JournalEntry? dayNote;
   final Map<String, String> settings;
+  final SleepLog? lastNight;
+  final DayFood food;
 
   @override
   Widget build(BuildContext context) {
     final db = context.db;
+    final sleepGoals = SleepGoals.from(settings);
+    final foodGoals = FoodGoals.from(settings);
     final badDay = settings['bad_day'] == '$today';
     final todayHabits = habits.where((h) => maskHasDay(h.daysMask, today)).toList();
     final todayTrackers = trackers.where((t) => maskHasDay(t.daysMask, today)).toList();
@@ -126,10 +142,15 @@ class _TodayBody extends StatelessWidget {
       total++;
       if (sessionToday != null) done++;
     }
+    if (sleepGoals.onToday) {
+      total++;
+      if (lastNight != null) done++;
+    }
     total++; // итог дня
     if (dayNote != null) done++;
 
-    final nothingPlanned = todayHabits.isEmpty && todayTrackers.isEmpty && todayPrograms.isEmpty;
+    final nothingPlanned =
+        todayHabits.isEmpty && todayTrackers.isEmpty && todayPrograms.isEmpty && !sleepGoals.onToday && !foodGoals.onToday;
     final habitsDone = todayHabits.where((h) => logsToday.containsKey(h.id)).length;
     final trackersDone = todayTrackers.where((t) => dayValue(t, entriesToday) != null).length;
     final dark = Theme.of(context).brightness == Brightness.dark;
@@ -175,13 +196,16 @@ class _TodayBody extends StatelessWidget {
         Card(
           child: SwitchListTile(
             contentPadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
-            secondary: const EmojiAvatar('🪫', color: Accent.reminders, size: 40),
+            secondary: const ColorIcon(Icons.battery_alert_rounded, color: Accent.reminders, size: 40),
             title: const Text('Тяжёлый день'),
             subtitle: const Text('Засчитывается минимум'),
             value: badDay,
             onChanged: (on) => db.setSetting('bad_day', on ? '$today' : null),
           ),
         ),
+        if (sleepGoals.onToday || foodGoals.onToday) const SectionTitle('Сон и питание'),
+        if (sleepGoals.onToday) SleepTodayCard(today: today, lastNight: lastNight, settings: settings),
+        if (foodGoals.onToday) FoodTodayCard(today: today, totals: food, goals: foodGoals),
         if (nothingPlanned)
           EmptyHint(
             'На сегодня ничего не запланировано. Добавь привычки или трекеры, и они появятся здесь в нужные дни.',
@@ -208,7 +232,7 @@ class _TodayBody extends StatelessWidget {
         ],
         const SectionTitle('Вечер'),
         _ActionCard(
-          emoji: '📝',
+          icon: Icons.edit_note_rounded,
           color: Accent.journal,
           title: 'Итог дня',
           subtitle: dayNote == null
@@ -219,7 +243,7 @@ class _TodayBody extends StatelessWidget {
         ),
         if (dayFromKey(today).weekday == DateTime.sunday)
           _ActionCard(
-            emoji: '📊',
+            icon: Icons.insights_rounded,
             color: Accent.report,
             title: 'Обзор недели',
             subtitle: 'Посмотри итоги и запиши, что меняешь',
@@ -230,7 +254,7 @@ class _TodayBody extends StatelessWidget {
   }
 
   String _motivation(int done, int total, bool badDay) {
-    if (total > 0 && done >= total) return 'Всё сделано. Хороший день 💪';
+    if (total > 0 && done >= total) return 'Всё сделано. Хороший день!';
     if (badDay) return 'Сегодня хватит минимума. Это тоже засчитывается.';
     if (done == 0) return 'Начни с самого простого дела.';
     final left = total - done;
@@ -258,14 +282,14 @@ class _Counter extends StatelessWidget {
 
 class _ActionCard extends StatelessWidget {
   const _ActionCard({
-    required this.emoji,
+    required this.icon,
     required this.color,
     required this.title,
     required this.subtitle,
     required this.onTap,
     this.done = false,
   });
-  final String emoji;
+  final IconData icon;
   final Color color;
   final String title;
   final String subtitle;
@@ -277,7 +301,7 @@ class _ActionCard extends StatelessWidget {
     return Card(
       child: ListTile(
         contentPadding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-        leading: EmojiAvatar(emoji, color: color),
+        leading: ColorIcon(icon, color: color),
         title: Text(title),
         subtitle: Text(subtitle),
         trailing: done ? const CheckDot(checked: true, color: Accent.habits, size: 28) : const Icon(Icons.chevron_right_rounded),
@@ -309,7 +333,7 @@ class _HabitTile extends StatelessWidget {
           padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
           child: Row(
             children: [
-              EmojiAvatar(habit.icon, color: Accent.habits),
+              ItemIcon(habit.icon),
               const SizedBox(width: 14),
               Expanded(
                 child: Column(
@@ -327,7 +351,8 @@ class _HabitTile extends StatelessWidget {
                         child: Wrap(
                           spacing: 6,
                           children: [
-                            if (streak > 0) Pill('🔥 $streak ${_days(streak)}', color: Accent.workouts),
+                            if (streak > 0)
+                              Pill('$streak ${_days(streak)}', icon: Icons.local_fire_department_rounded, color: Accent.workouts),
                             if (done && log!.minimum) const Pill('минимум', color: Accent.reminders),
                           ],
                         ),
@@ -362,7 +387,7 @@ class _WorkoutCard extends StatelessWidget {
   Widget build(BuildContext context) {
     if (sessionToday != null) {
       return _ActionCard(
-        emoji: '🏋️',
+        icon: Icons.fitness_center_rounded,
         color: Accent.workouts,
         title: '${sessionToday!.programName}: сделано',
         subtitle: 'Отдых и еда теперь важнее всего',
@@ -384,7 +409,7 @@ class _WorkoutCard extends StatelessWidget {
           children: [
             Row(
               children: [
-                const EmojiAvatar('🏋️', color: Accent.workouts),
+                const ColorIcon(Icons.fitness_center_rounded, color: Accent.workouts),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

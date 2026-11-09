@@ -5,6 +5,8 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import 'calc.dart';
+import 'food.dart';
+import 'sleep.dart';
 import 'values.dart';
 
 class HabitWeek {
@@ -21,8 +23,27 @@ class TrackerWeek {
   final String label;
 }
 
+/// Сон за неделю.
+class SleepWeek {
+  SleepWeek(this.stats, this.goals);
+  final SleepStats stats;
+  final SleepGoals goals;
+}
+
+/// Питание за неделю: средние за дни с записями.
+class FoodWeek {
+  FoodWeek({required this.days, required this.avgKcal, required this.avgProtein, required this.onTarget, required this.goals});
+  final int days;
+  final double avgKcal;
+  final double avgProtein;
+  final int onTarget;
+  final FoodGoals goals;
+}
+
 class WeekReport {
   WeekReport({
+    this.sleep,
+    this.food,
     required this.from,
     required this.to,
     required this.habits,
@@ -53,6 +74,8 @@ class WeekReport {
   final double? moodAvg;
   final int dayNotes;
   final JournalEntry? review;
+  final SleepWeek? sleep;
+  final FoodWeek? food;
 
   int get habitsPlanned => habits.fold(0, (a, h) => a + h.planned);
   int get habitsDone => habits.fold(0, (a, h) => a + h.done);
@@ -90,6 +113,23 @@ class WeekReport {
         final what = f.kind == FundKind.debt ? 'выплачено' : (sum >= 0 ? 'отложено' : 'снято');
         b.writeln('- ${f.name}: $what ${formatMoney(sum.abs())}');
       }
+    }
+    final sl = sleep;
+    if (sl != null && sl.stats.nights > 0) {
+      b.writeln();
+      b.writeln(
+        'Сон: записано ночей ${sl.stats.nights}, в среднем ${formatDuration(sl.stats.avgDuration!)}, '
+        'отбой в среднем ${formatMinutes(sl.stats.avgBed!)}, вовремя ${sl.stats.onTime} из ${sl.stats.nights}',
+      );
+    }
+    final fd = food;
+    if (fd != null && fd.days > 0) {
+      b.writeln();
+      b.writeln(
+        'Питание: в среднем ${formatNumber(fd.avgKcal, maxDecimals: 0)} ккал и ${formatNumber(fd.avgProtein, maxDecimals: 0)} г белка в день '
+        '(цель ${formatNumber(fd.goals.kcal, maxDecimals: 0)} ккал и ${formatNumber(fd.goals.protein, maxDecimals: 0)} г), '
+        'норма калорий в ${fd.onTarget} из ${fd.days} дней',
+      );
     }
     if (dayNotes > 0) {
       b.writeln();
@@ -175,7 +215,26 @@ Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) asy
   ];
   final review = journal.where((j) => j.kind == JournalKind.week && j.day == monday).firstOrNull;
 
+  final settings = {for (final r in await db.select(db.settings).get()) r.key: r.value};
+  final sleepGoals = SleepGoals.from(settings);
+  final sleepLogs = await db.sleepBetween(from, to);
+  final foodGoals = FoodGoals.from(settings);
+  final meals = await db.mealsBetween(from, to);
+  final water = await db.waterBetween(from, to);
+  final foodDays = {for (final m in meals) m.day}.toList();
+  final totals = [for (final d in foodDays) dayFood(d, meals, water)];
+
   return WeekReport(
+    sleep: sleepLogs.isEmpty ? null : SleepWeek(sleepStats(sleepLogs, sleepGoals, from: from, to: to, today: until), sleepGoals),
+    food: totals.isEmpty
+        ? null
+        : FoodWeek(
+            days: totals.length,
+            avgKcal: totals.fold<double>(0, (a, x) => a + x.kcal) / totals.length,
+            avgProtein: totals.fold<double>(0, (a, x) => a + x.protein) / totals.length,
+            onTarget: totals.where((x) => kcalOnTarget(x.kcal, foodGoals)).length,
+            goals: foodGoals,
+          ),
     from: from,
     to: to,
     habits: habitWeeks,

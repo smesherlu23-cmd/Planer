@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import 'dates.dart';
+import 'icon_keys.dart';
 
 part 'database.g.dart';
 
@@ -60,7 +61,7 @@ enum JournalKind {
 class Habits extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get icon => text().withDefault(const Constant('✅'))();
+  TextColumn get icon => text().withDefault(const Constant('check'))();
   IntColumn get daysMask => integer().withDefault(const Constant(everyDay))();
 
   /// Время напоминания в минутах от полуночи.
@@ -92,7 +93,7 @@ class HabitLogs extends Table {
 class Trackers extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get icon => text().withDefault(const Constant('📈'))();
+  TextColumn get icon => text().withDefault(const Constant('chart'))();
   TextColumn get unit => text().nullable()();
   IntColumn get kind => intEnum<TrackerKind>()();
 
@@ -133,7 +134,7 @@ class Goals extends Table {
 class Categories extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get icon => text().withDefault(const Constant('💸'))();
+  TextColumn get icon => text().withDefault(const Constant('payments'))();
   BoolColumn get isIncome => boolean().withDefault(const Constant(false))();
 
   /// Лимит на месяц, необязательно.
@@ -157,7 +158,7 @@ class Transactions extends Table {
 class Funds extends Table {
   IntColumn get id => integer().autoIncrement()();
   TextColumn get name => text()();
-  TextColumn get icon => text().withDefault(const Constant('🐷'))();
+  TextColumn get icon => text().withDefault(const Constant('savings'))();
   IntColumn get kind => intEnum<FundKind>()();
 
   /// Для копилки: сколько уже было на старте. Для долга: сколько был должен на старте.
@@ -248,6 +249,49 @@ class Reminders extends Table {
   BoolColumn get enabled => boolean().withDefault(const Constant(true))();
 }
 
+/// Одна ночь сна. День записи это день, когда проснулся.
+class SleepLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get day => integer()();
+  DateTimeColumn get bedAt => dateTime()();
+  DateTimeColumn get wakeAt => dateTime()();
+
+  /// Как выспался, от 1 до 5.
+  IntColumn get quality => integer().nullable()();
+  TextColumn get note => text().nullable()();
+}
+
+/// Своё блюдо или продукт для добавления в один тап.
+class Foods extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('restaurant'))();
+  RealColumn get kcal => real()();
+  RealColumn get protein => real().withDefault(const Constant(0))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+}
+
+/// Что съел. Название и цифры копируются из блюда, чтобы правка блюда не меняла историю.
+class Meals extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('restaurant'))();
+  RealColumn get kcal => real()();
+  RealColumn get protein => real().withDefault(const Constant(0))();
+  IntColumn get foodId => integer().nullable().references(Foods, #id, onDelete: KeyAction.setNull)();
+}
+
+/// Выпитая вода.
+class WaterLogs extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
+  IntColumn get ml => integer()();
+}
+
 class Settings extends Table {
   TextColumn get key => text()();
   TextColumn get value => text()();
@@ -279,20 +323,48 @@ class Settings extends Table {
     JournalEntries,
     Reminders,
     Settings,
+    SleepLogs,
+    Foods,
+    Meals,
+    WaterLogs,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
+    onUpgrade: (m, from, to) async {
+      if (from < 2) {
+        // Версия 2: сон, питание и иконки вместо эмодзи.
+        await m.createTable(sleepLogs);
+        await m.createTable(foods);
+        await m.createTable(meals);
+        await m.createTable(waterLogs);
+        await convertEmojiIcons();
+      }
+    },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  /// Заменить эмодзи из старых версий на ключи иконок. Неизвестные значения не трогает.
+  Future<void> convertEmojiIcons() async {
+    for (final table in ['habits', 'trackers', 'funds', 'categories']) {
+      final rows = await customSelect('SELECT id, icon FROM "$table"').get();
+      for (final r in rows) {
+        final old = r.read<String>('icon');
+        final key = iconKeyFor(old);
+        if (key != null && key != old) {
+          await customStatement('UPDATE "$table" SET icon = ? WHERE id = ?', [key, r.read<int>('id')]);
+        }
+      }
+    }
+  }
 
   // ----- Настройки -----
 
