@@ -13,7 +13,6 @@ import 'package:planer/data/database.dart';
 import 'package:planer/data/dates.dart';
 import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
-import 'package:planer/logic/budget.dart';
 import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
 import 'package:planer/ui/icons.dart';
@@ -114,11 +113,6 @@ void main() {
           await db.addWater(250, day: day);
         }
       }
-      // Бюджет шаблона составлен на месяц старта: копируем его на текущий месяц.
-      final plan = await db.budgetOf(monthKey(dayFromKey(addDays(today, -14))));
-      await db.saveBudget(monthKey(dayFromKey(today)), [
-        for (final l in plan) (categoryId: l.categoryId, fundId: l.fundId, amount: l.amount),
-      ]);
       final salary = cats.firstWhere((c) => c.name == 'Зарплата');
       await db.saveTransaction(
         TransactionsCompanion.insert(amount: 65000, isIncome: const Value(true), categoryId: Value(salary.id), day: today),
@@ -173,9 +167,13 @@ void main() {
     await pumpData(tester);
 
     await tab('Деньги', '03_money');
-    await tester.tap(find.text('План').hitTestable().first);
+    await tester.tap(find.text('Аналитика и планы').hitTestable().first);
     await pumpData(tester);
-    await shot(tester, '03b_budget_edit');
+    expect(find.text('На долги и копилки в месяц'), findsOneWidget);
+    await shot(tester, '03b_money_plan');
+    await tester.scrollUntilVisible(find.text('Кредит: как закрыть быстрее').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '03c_money_plan_debt');
     await back(tester);
     await pumpData(tester);
     await tab('Спорт', '04_workouts');

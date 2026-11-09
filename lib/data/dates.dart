@@ -105,3 +105,16 @@ String formatDuration(num minutes) {
   if (m == 0) return '$h ч';
   return '$h ч $m мин';
 }
+
+/// Месяц как число yyyymm.
+int monthKey(DateTime d) => d.year * 100 + d.month;
+
+DateTime monthFromKey(int key) => DateTime(key ~/ 100, key % 100);
+
+/// Сколько дней месяца осталось, включая сегодня. Для прошлых месяцев 0, для будущих все дни.
+int daysLeftInMonth(DateTime month, DateTime now) {
+  final last = DateTime(month.year, month.month + 1, 0);
+  if (!now.isBefore(DateTime(month.year, month.month + 1))) return 0;
+  if (now.isBefore(month)) return last.day;
+  return last.day - now.day + 1;
+}

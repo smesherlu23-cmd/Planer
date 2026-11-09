@@ -9,7 +9,6 @@ import 'package:drift/drift.dart';
 import 'database.dart';
 import 'dates.dart';
 import 'food_data.dart';
-import '../logic/budget.dart';
 import '../logic/calc.dart';
 import '../logic/food.dart';
 import '../logic/sleep.dart';
@@ -173,7 +172,7 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       monthlyAmount: const Value(12000),
     ),
   );
-  final license = await db.saveFund(
+  await db.saveFund(
     FundsCompanion.insert(
       name: 'Права',
       icon: const Value('license'),
@@ -191,18 +190,6 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       monthlyAmount: const Value(23000),
     ),
   );
-
-  // ----- Бюджет на месяц: доход 65 тыс., кредит 12, на себя 10, остальное в копилки -----
-  final cats = {for (final c in await db.select(db.categories).get()) c.name: c.id};
-  await db.saveBudget(monthKey(dayFromKey(today)), [
-    (categoryId: cats['Зарплата'], fundId: null, amount: 65000),
-    (categoryId: null, fundId: loan, amount: 12000),
-    (categoryId: null, fundId: license, amount: 20000),
-    (categoryId: null, fundId: civic, amount: 23000),
-    (categoryId: cats['Одежда'], fundId: null, amount: 4000),
-    (categoryId: cats['Уход и здоровье'], fundId: null, amount: 3000),
-    (categoryId: cats['Другое'], fundId: null, amount: 3000),
-  ]);
 
   // ----- План будних дней и выходных. Сон берётся из раздела «Сон» -----
   final weekdays = maskFromWeekdays([1, 2, 3, 4, 5]);
