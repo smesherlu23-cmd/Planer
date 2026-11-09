@@ -20,63 +20,79 @@ class MoneyPlanScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('Планы: долги и копилки')),
+      body: const MoneyPlanView(),
+    );
+  }
+}
+
+/// Планы без своей шапки: для вкладки «Планы» и отдельного экрана. [leading] встаёт в начало списка.
+class MoneyPlanView extends StatelessWidget {
+  const MoneyPlanView({super.key, this.leading = const [], this.bottomPadding = 32});
+  final List<Widget> leading;
+  final double bottomPadding;
+
+  @override
+  Widget build(BuildContext context) {
     final db = context.db;
     final now = DateTime.now();
     final from = dayKey(DateTime(now.year, now.month - 6, 1));
-    return Scaffold(
-      appBar: AppBar(title: const Text('Аналитика и планы')),
-      body: Watch(
-        streams: () => [
-          db.watchTransactions(from: from, to: todayKey()),
-          db.watchFunds(),
-          db.watchFundValues(),
-          db.watchCategories(),
-          db.watchAllSettings(),
-        ],
-        builder: (context, v) {
-          final txs = v[0] as List<Transaction>;
-          final funds = v[1] as List<Fund>;
-          final values = v[2] as Map<int, double>;
-          final cats = {for (final c in v[3] as List<Category>) c.id: c};
-          final settings = v[4] as Map<String, String>;
-          final depositRate = double.tryParse(settings[_keyDepositRate] ?? '') ?? 0;
-          final items = [
-            for (final f in funds)
-              PlanItem(
-                id: f.id,
-                name: f.name,
-                isDebt: f.kind == FundKind.debt,
-                balance: values[f.id] ?? fundValue(f, 0),
-                target: f.kind == FundKind.debt ? null : f.target,
-                rate: f.kind == FundKind.debt ? (f.interestRate ?? 0) : depositRate,
-                payment: f.kind == FundKind.debt ? (f.monthlyAmount ?? 0) : 0,
-              ),
-          ];
-          final flow = averageFlow(txs, now: now);
-          final minimum = minimumPayments(items);
-          final planned = minimum + funds.where((f) => f.kind == FundKind.savings).fold<double>(0, (a, f) => a + (f.monthlyAmount ?? 0));
-          final free = flow == null ? null : math.max(0.0, flow.income - flow.expenses);
-          final saved = double.tryParse(settings[_keyMonthly] ?? '');
-          final monthly = math.max(minimum, saved ?? (planned > 0 ? planned : (free ?? minimum)));
-          return _PlanBody(
-            items: items,
-            funds: funds,
-            flow: flow,
-            free: free,
-            minimum: minimum,
-            planned: planned,
-            monthly: monthly,
-            depositRate: depositRate,
-            spending: [for (final (id, sum) in spendingByCategory(txs, now: now)) (cats[id], sum)],
-          );
-        },
-      ),
+    return Watch(
+      streams: () => [
+        db.watchTransactions(from: from, to: todayKey()),
+        db.watchFunds(),
+        db.watchFundValues(),
+        db.watchCategories(),
+        db.watchAllSettings(),
+      ],
+      builder: (context, v) {
+        final txs = v[0] as List<Transaction>;
+        final funds = v[1] as List<Fund>;
+        final values = v[2] as Map<int, double>;
+        final cats = {for (final c in v[3] as List<Category>) c.id: c};
+        final settings = v[4] as Map<String, String>;
+        final depositRate = double.tryParse(settings[_keyDepositRate] ?? '') ?? 0;
+        final items = [
+          for (final f in funds)
+            PlanItem(
+              id: f.id,
+              name: f.name,
+              isDebt: f.kind == FundKind.debt,
+              balance: values[f.id] ?? fundValue(f, 0),
+              target: f.kind == FundKind.debt ? null : f.target,
+              rate: f.kind == FundKind.debt ? (f.interestRate ?? 0) : depositRate,
+              payment: f.kind == FundKind.debt ? (f.monthlyAmount ?? 0) : 0,
+            ),
+        ];
+        final flow = averageFlow(txs, now: now);
+        final minimum = minimumPayments(items);
+        final planned = minimum + funds.where((f) => f.kind == FundKind.savings).fold<double>(0, (a, f) => a + (f.monthlyAmount ?? 0));
+        final free = flow == null ? null : math.max(0.0, flow.income - flow.expenses);
+        final saved = double.tryParse(settings[_keyMonthly] ?? '');
+        final monthly = math.max(minimum, saved ?? (planned > 0 ? planned : (free ?? minimum)));
+        return _PlanBody(
+          leading: leading,
+          bottomPadding: bottomPadding,
+          items: items,
+          funds: funds,
+          flow: flow,
+          free: free,
+          minimum: minimum,
+          planned: planned,
+          monthly: monthly,
+          depositRate: depositRate,
+          spending: [for (final (id, sum) in spendingByCategory(txs, now: now)) (cats[id], sum)],
+        );
+      },
     );
   }
 }
 
 class _PlanBody extends StatelessWidget {
   const _PlanBody({
+    required this.leading,
+    required this.bottomPadding,
     required this.items,
     required this.funds,
     required this.flow,
@@ -88,6 +104,8 @@ class _PlanBody extends StatelessWidget {
     required this.spending,
   });
 
+  final List<Widget> leading;
+  final double bottomPadding;
   final List<PlanItem> items;
   final List<Fund> funds;
   final MonthlyFlow? flow;
@@ -108,8 +126,10 @@ class _PlanBody extends StatelessWidget {
     final best = debts.isEmpty || goals.isEmpty || !rated ? null : bestStrategy(items, results);
     final icons = {for (final f in funds) f.id: f.icon};
     return ListView(
-      padding: const EdgeInsets.only(bottom: 32),
+      padding: EdgeInsets.only(bottom: bottomPadding),
       children: [
+        ...leading,
+        if (leading.isNotEmpty) const SectionTitle('Долги и копилки: планы'),
         _FlowCard(flow: flow),
         _MonthlyCard(
           monthly: monthly,
@@ -207,7 +227,7 @@ class _FlowCard extends StatelessWidget {
               ),
               const SizedBox(width: 8),
               Expanded(
-                child: HeroStat(label: 'Норма сбережений', value: f.income <= 0 ? '—' : '${(100 * left / f.income).round()}%'),
+                child: HeroStat(label: 'Откладываю', value: f.income <= 0 ? '—' : '${(100 * left / f.income).round()}%'),
               ),
             ],
           ),

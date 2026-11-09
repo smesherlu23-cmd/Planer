@@ -52,6 +52,12 @@ enum FundKind {
   debt,
 }
 
+/// Как часто повторяется регулярный платёж.
+enum RepeatKind { weekly, monthly, yearly }
+
+/// Что делает регулярный платёж: расход, доход или взнос в копилку и платёж по долгу.
+enum RecurringKind { expense, income, fund }
+
 /// На что уходит время в плане дня.
 enum BlockKind { sleep, work, study, sport, rest, home, road, food, other }
 
@@ -250,6 +256,59 @@ class Transactions extends Table {
   IntColumn get day => integer()();
   DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
   TextColumn get note => text().nullable()();
+
+  /// Счёт, с которого ушли или на который пришли деньги. null: счёт не указан.
+  IntColumn get accountId => integer().nullable().references(Accounts, #id, onDelete: KeyAction.setNull)();
+}
+
+/// Где лежат деньги: карта, наличные, накопительный счёт.
+class Accounts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('card'))();
+
+  /// Остаток до первой записанной операции. Корректировка баланса меняет именно его.
+  RealColumn get initialBalance => real().withDefault(const Constant(0))();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Перевод между своими счетами: не доход и не расход.
+class Transfers extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  @ReferenceName('transfersOut')
+  IntColumn get fromAccountId => integer().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  @ReferenceName('transfersIn')
+  IntColumn get toAccountId => integer().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  RealColumn get amount => real()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get note => text().nullable()();
+}
+
+/// Регулярный платёж: зарплата, подписка, связь, платёж по кредиту.
+class Recurrings extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('payments'))();
+  IntColumn get kind => intEnum<RecurringKind>()();
+  RealColumn get amount => real()();
+  IntColumn get categoryId => integer().nullable().references(Categories, #id, onDelete: KeyAction.setNull)();
+  IntColumn get accountId => integer().nullable().references(Accounts, #id, onDelete: KeyAction.setNull)();
+  IntColumn get fundId => integer().nullable().references(Funds, #id, onDelete: KeyAction.cascade)();
+  IntColumn get repeat => intEnum<RepeatKind>()();
+
+  /// Каждые сколько недель, месяцев или лет.
+  IntColumn get every => integer().withDefault(const Constant(1))();
+
+  /// Ближайшая дата платежа. После оплаты сдвигается на следующий период.
+  IntColumn get nextDay => integer()();
+
+  /// Число месяца для ежемесячных и ежегодных: чтобы 31-е после февраля снова стало 31-м.
+  IntColumn get monthDay => integer().nullable()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
 
 /// Копилка или долг.
@@ -282,6 +341,9 @@ class FundMoves extends Table {
   RealColumn get amount => real()();
   IntColumn get day => integer()();
   TextColumn get note => text().nullable()();
+
+  /// Счёт, с которого внесли или на который сняли. null: счёт не указан.
+  IntColumn get accountId => integer().nullable().references(Accounts, #id, onDelete: KeyAction.setNull)();
 }
 
 /// Программа тренировок, например «Тренировка A».
@@ -513,6 +575,7 @@ class Settings extends Table {
     Habits,
     HabitLogs,
     HabitDays,
+    Accounts,
     Funds,
     Goals,
     GoalSteps,
@@ -534,6 +597,8 @@ class Settings extends Table {
     HardDays,
     TimeBlocks,
     BudgetLines,
+    Transfers,
+    Recurrings,
   ],
 )
 class AppDatabase extends _$AppDatabase {
@@ -627,6 +692,8 @@ class AppDatabase extends _$AppDatabase {
         ]) {
           await _addColumnOnce(m, journalEntries, c);
         }
+        // Версия 5: счета, переводы, регулярные платежи. Шаг можно повторить без вреда.
+        await addMoneyAccounts(m);
       }
     },
     beforeOpen: (details) async {
@@ -647,6 +714,35 @@ class AppDatabase extends _$AppDatabase {
   Future<void> _addColumnIfMissing(Migrator m, TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
     final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
     if (!cols.any((c) => c.read<String>('name') == column.name)) await m.addColumn(table, column);
+  }
+
+  Future<bool> _hasColumn(TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
+    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+    return cols.any((c) => c.read<String>('name') == column.name);
+  }
+
+  Future<bool> _hasTable(TableInfo<Table, Object?> table) async {
+    final rows = await customSelect(
+      "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+      variables: [Variable(table.actualTableName)],
+    ).get();
+    return rows.isNotEmpty;
+  }
+
+  /// Счета появились в версии 5. Старые операции и взносы относим к счёту «Карта»,
+  /// чтобы остаток сразу считался; его можно поправить, указав, сколько на карте сейчас.
+  Future<void> addMoneyAccounts(Migrator m) async {
+    for (final t in <TableInfo<Table, Object?>>[accounts, transfers, recurrings]) {
+      if (!await _hasTable(t)) await m.createTable(t);
+    }
+    if (!await _hasColumn(transactions, transactions.accountId)) await m.addColumn(transactions, transactions.accountId);
+    if (!await _hasColumn(fundMoves, fundMoves.accountId)) await m.addColumn(fundMoves, fundMoves.accountId);
+    final hasAccounts = (await customSelect('SELECT id FROM accounts LIMIT 1').get()).isNotEmpty;
+    final hasTxs = (await customSelect('SELECT id FROM transactions LIMIT 1').get()).isNotEmpty;
+    if (!hasAccounts && hasTxs) {
+      final id = await into(accounts).insert(AccountsCompanion.insert(name: 'Карта', sortOrder: const Value(1)));
+      await customStatement('UPDATE transactions SET account_id = ? WHERE account_id IS NULL', [id]);
+    }
   }
 
   /// Раньше тяжёлый день хранился одной настройкой и забывался на следующий день. Переносим его в таблицу.
