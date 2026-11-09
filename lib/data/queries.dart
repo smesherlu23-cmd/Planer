@@ -471,20 +471,42 @@ extension HealthQueries on AppDatabase {
 
   Future<List<Meal>> mealsBetween(int from, int to) => (select(meals)..where((t) => t.day.isBetweenValues(from, to))).get();
 
-  /// Записать блюдо как съеденное.
-  Future<int> eatFood(Food f, {int? day, int? slot}) => into(meals).insert(
+  /// Записать блюдо как съеденное. [portions] — сколько порций (1,5 порции, полпорции).
+  /// Если у блюда задан вес порции, вес записи считается из него.
+  Future<int> eatFood(Food f, {int? day, int? slot, double portions = 1}) => into(meals).insert(
     MealsCompanion.insert(
       day: day ?? todayKey(),
       name: f.name,
       icon: Value(f.icon),
-      kcal: f.kcal,
-      protein: Value(f.protein),
-      fat: Value(f.fat),
-      carbs: Value(f.carbs),
+      kcal: f.kcal * portions,
+      protein: Value(f.protein * portions),
+      fat: Value(f.fat * portions),
+      carbs: Value(f.carbs * portions),
       slot: Value(slot),
+      grams: Value(f.grams == null ? null : f.grams! * portions),
       foodId: Value(f.id),
     ),
   );
+
+  /// Повторить еду другого дня: весь день или один приём пищи. Возвращает, сколько записей добавлено.
+  Future<int> copyMeals({required int from, required int to, bool Function(Meal m)? where}) async {
+    final src =
+        await (select(meals)
+              ..where((t) => t.day.equals(from))
+              ..orderBy([(t) => OrderingTerm(expression: t.at)]))
+            .get();
+    final now = DateTime.now();
+    var n = 0;
+    await transaction(() async {
+      for (final m in src) {
+        if (where != null && !where(m)) continue;
+        await into(meals)
+            .insert(m.toCompanion(false).copyWith(id: const Value.absent(), day: Value(to), at: Value(to == todayKey() ? now : m.at)));
+        n++;
+      }
+    });
+    return n;
+  }
 
   Future<int> saveMeal(MealsCompanion m) async {
     if (m.id.present) {

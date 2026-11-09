@@ -1,6 +1,7 @@
 /// Питание: цели на день, итоги дня и подсказка по весу.
 library;
 
+import 'dart:convert';
 import 'dart:math';
 
 import '../data/database.dart';
@@ -291,8 +292,8 @@ Level? foodLevel(DayFood d, FoodGoals g) {
 
 /// Темп веса за последние 3 недели по наклону прямой через все взвешивания.
 /// Так одно взвешивание после солёного ужина не сбивает вывод.
-({double perWeek, double percent, double avg})? weightTrend(List<(int day, double value)> series, {required int today}) {
-  final recent = series.where((p) => p.$1 >= addDays(today, -21) && p.$1 <= today).toList();
+({double perWeek, double percent, double avg})? weightTrend(List<(int day, double value)> series, {required int today, int days = 21}) {
+  final recent = series.where((p) => p.$1 >= addDays(today, -days) && p.$1 <= today).toList();
   if (recent.length < 3) return null;
   final span = daysBetween(recent.first.$1, recent.last.$1);
   if (span < 10) return null;
@@ -345,4 +346,174 @@ Level? foodLevel(DayFood d, FoodGoals g) {
     FoodMode.lose => 'Для снижения без потери мышц нужно $target в неделю.',
   };
   return (text: 'Вес: $pace. $need ${delta > 0 ? 'Добавь' : 'Убери'} около ${delta.abs()} ккал в день.', adjust: true, kcalDelta: delta);
+}
+
+// ---------------------------------------------------------------------------
+// Порции, граммы и рецепты
+// ---------------------------------------------------------------------------
+
+/// Калории и БЖУ одной порции или суммы.
+typedef Macros = ({double kcal, double protein, double fat, double carbs});
+
+const zeroMacros = (kcal: 0.0, protein: 0.0, fat: 0.0, carbs: 0.0);
+
+Macros scaleMacros(Macros m, double k) => (kcal: m.kcal * k, protein: m.protein * k, fat: m.fat * k, carbs: m.carbs * k);
+
+Macros addMacros(Macros a, Macros b) =>
+    (kcal: a.kcal + b.kcal, protein: a.protein + b.protein, fat: a.fat + b.fat, carbs: a.carbs + b.carbs);
+
+Macros foodMacros(Food f) => (kcal: f.kcal, protein: f.protein, fat: f.fat, carbs: f.carbs);
+
+Macros mealMacros(Meal m) => (kcal: m.kcal, protein: m.protein, fat: m.fat, carbs: m.carbs);
+
+/// Ингредиент рецепта: вес и состав на 100 г.
+class RecipePart {
+  const RecipePart({required this.name, required this.grams, required this.per100});
+
+  factory RecipePart.fromJson(Map<String, Object?> j) {
+    double n(String k) => (j[k] as num?)?.toDouble() ?? 0;
+    return RecipePart(name: j['n'] as String? ?? '', grams: n('g'), per100: (kcal: n('k'), protein: n('p'), fat: n('f'), carbs: n('c')));
+  }
+
+  final String name;
+  final double grams;
+  final Macros per100;
+
+  Macros get total => scaleMacros(per100, grams / 100);
+
+  RecipePart withGrams(double g) => RecipePart(name: name, grams: g, per100: per100);
+
+  Map<String, Object?> toJson() => {'n': name, 'g': grams, 'k': per100.kcal, 'p': per100.protein, 'f': per100.fat, 'c': per100.carbs};
+}
+
+/// Рецепт хранится у блюда текстом. Пустой список, если это не рецепт или текст испорчен.
+List<RecipePart> decodeRecipe(String? json) {
+  if (json == null || json.isEmpty) return const [];
+  try {
+    final list = jsonDecode(json) as List;
+    return [for (final e in list) RecipePart.fromJson((e as Map).cast<String, Object?>())];
+  } catch (_) {
+    return const [];
+  }
+}
+
+String encodeRecipe(List<RecipePart> parts) => jsonEncode([for (final p in parts) p.toJson()]);
+
+Macros recipeTotal(List<RecipePart> parts) => parts.fold(zeroMacros, (a, p) => addMacros(a, p.total));
+
+double recipeWeight(List<RecipePart> parts) => parts.fold(0.0, (a, p) => a + p.grams);
+
+/// Одна порция рецепта. [portions] не меньше 1.
+Macros recipePortion(List<RecipePart> parts, double portions) => scaleMacros(recipeTotal(parts), 1 / max(1, portions));
+
+// ---------------------------------------------------------------------------
+// Расход по факту
+// ---------------------------------------------------------------------------
+
+/// Сколько на самом деле тратишь за день, по съеденному и изменению веса.
+///
+/// Так считают MacroFactor и подобные программы: если ел в среднем 2800 ккал и прибавил 0,3 кг
+/// за неделю (≈ 330 ккал в день в запас), значит тратишь около 2470. Формулы ошибаются на 10% и больше,
+/// а этот расчёт подстраивается под конкретного человека.
+///
+/// Нужно хотя бы 14 дней записей еды за последние 4 недели и взвешивания минимум за 10 дней.
+/// Дни без записей не учитываются: считается, что в них ел как обычно. Дни меньше [minDay] ккал
+/// тоже: скорее всего, записал не всё, и такой день занизил бы расход.
+({double kcal, int days, double perWeek})? measuredExpenditure({
+  required Map<int, double> intake,
+  required List<(int day, double value)> weights,
+  required int today,
+  int window = 28,
+  double minDay = 0,
+}) {
+  // Сегодняшний день ещё не закончился: его не берём.
+  final from = addDays(today, -window), to = addDays(today, -1);
+  final logged = [
+    for (final e in intake.entries)
+      if (e.key >= from && e.key <= to && e.value > 0 && e.value >= minDay) e.value,
+  ];
+  if (logged.length < 14) return null;
+  final trend = weightTrend(weights, today: today, days: window);
+  if (trend == null) return null;
+  final avgIntake = logged.reduce((a, b) => a + b) / logged.length;
+  final kcal = avgIntake - trend.perWeek * 7700 / 7;
+  if (kcal < 1200 || kcal > 6000) return null;
+  return (kcal: kcal, days: logged.length, perWeek: trend.perWeek);
+}
+
+/// Цель калорий от расхода: набор +10%, снижение −20%, как в [planFor].
+double kcalForMode(double expenditure, FoodMode mode) => _round(
+  expenditure *
+      switch (mode) {
+        FoodMode.gain => 1.10,
+        FoodMode.keep => 1.0,
+        FoodMode.lose => 0.80,
+      },
+  50,
+);
+
+// ---------------------------------------------------------------------------
+// Чем добрать норму
+// ---------------------------------------------------------------------------
+
+/// До трёх блюд, которые лучше всего закрывают остаток калорий и белка, без большого перебора.
+/// Если белка не хватает сильнее, чем калорий, выше идут белковые блюда.
+List<T> fillSuggestions<T>(List<(T, Macros)> options, {required double kcalLeft, required double proteinLeft, int limit = 3}) {
+  var k = kcalLeft, p = max(0.0, proteinLeft);
+  final picked = <T>[];
+  final pool = [...options];
+  while (picked.length < limit && k >= 150 && pool.isNotEmpty) {
+    (T, Macros)? best;
+    var bestScore = 0.0;
+    for (final o in pool) {
+      final m = o.$2;
+      if (m.kcal <= 0 || m.kcal > k * 1.15 + 50) continue;
+      final kcalPart = min(m.kcal, k) / k;
+      final proteinPart = p < 5 ? 0.0 : min(m.protein, p) / p;
+      final proteinWeight = p / max(k, 1) * 100 > 4 ? 1.5 : 0.7;
+      final score = kcalPart + proteinPart * proteinWeight;
+      if (score > bestScore) {
+        bestScore = score;
+        best = o;
+      }
+    }
+    if (best == null) break;
+    picked.add(best.$1);
+    pool.remove(best);
+    k -= best.$2.kcal;
+    p = max(0, p - best.$2.protein);
+  }
+  return picked;
+}
+
+// ---------------------------------------------------------------------------
+// Статистика за период
+// ---------------------------------------------------------------------------
+
+/// Дней подряд, когда набрана хотя бы минимальная планка. Сегодня считается, только если уже набрано:
+/// незаконченный день серию не рвёт.
+int foodStreak(Map<int, DayFood> days, FoodGoals g, {required int today}) {
+  bool ok(int d) {
+    final f = days[d];
+    if (f == null) return false;
+    final l = foodLevel(f, g);
+    return l == Level.full || l == Level.minimum;
+  }
+
+  var d = ok(today) ? today : addDays(today, -1);
+  var n = 0;
+  while (ok(d)) {
+    n++;
+    d = addDays(d, -1);
+  }
+  return n;
+}
+
+/// Доли калорий из белков, жиров и углеводов, в процентах.
+({int protein, int fat, int carbs})? macroSplit(double protein, double fat, double carbs) {
+  final p = protein * 4, f = fat * 9, c = carbs * 4;
+  final total = p + f + c;
+  if (total <= 0) return null;
+  final pp = (p / total * 100).round(), fp = (f / total * 100).round();
+  return (protein: pp, fat: fp, carbs: 100 - pp - fp);
 }
