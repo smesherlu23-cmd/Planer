@@ -11,11 +11,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:planer/app.dart';
 import 'package:planer/data/database.dart';
 import 'package:planer/data/dates.dart';
+import 'package:planer/data/money_queries.dart';
 import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
 import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
 import 'package:planer/ui/icons.dart';
+import 'package:planer/ui/money/overview_tab.dart';
+import 'package:planer/ui/money/plans_tab.dart';
 import 'package:planer/ui/more_screen.dart';
 import 'package:planer/ui/theme.dart';
 
@@ -117,6 +120,69 @@ void main() {
       await db.saveTransaction(
         TransactionsCompanion.insert(amount: 65000, isIncome: const Value(true), categoryId: Value(salary.id), day: today),
       );
+      // Деньги: два счёта, перевод, прошлые месяцы для аналитики, регулярные платежи.
+      final card = await db.saveAccount(AccountsCompanion.insert(name: 'Карта', initialBalance: const Value(14000)));
+      final cash = await db.saveAccount(
+        AccountsCompanion.insert(name: 'Наличные', icon: const Value('wallet'), initialBalance: const Value(3000)),
+      );
+      await db.customStatement('UPDATE transactions SET account_id = ?', [card]);
+      await db.saveTransfer(TransfersCompanion.insert(fromAccountId: card, toAccountId: cash, amount: 2000, day: addDays(today, -1)));
+      final now = DateTime.now();
+      for (var m = 1; m <= 5; m++) {
+        final day = dayKey(DateTime(now.year, now.month - m, 10));
+        await db.saveTransaction(
+          TransactionsCompanion.insert(
+            amount: 65000,
+            isIncome: const Value(true),
+            categoryId: Value(salary.id),
+            day: day,
+            accountId: Value(card),
+          ),
+        );
+        for (var i = 0; i < 5; i++) {
+          await db.saveTransaction(
+            TransactionsCompanion.insert(
+              amount: 4000.0 + 2500 * i + 900 * m,
+              categoryId: Value(cats[i].id),
+              day: day,
+              accountId: Value(card),
+            ),
+          );
+        }
+      }
+      await db.saveRecurring(
+        RecurringsCompanion.insert(
+          name: 'Зарплата',
+          icon: const Value('salary'),
+          kind: RecurringKind.income,
+          amount: 65000,
+          repeat: RepeatKind.monthly,
+          nextDay: addDays(today, 12),
+          accountId: Value(card),
+        ),
+      );
+      await db.saveRecurring(
+        RecurringsCompanion.insert(
+          name: 'Связь и интернет',
+          icon: const Value('phone'),
+          kind: RecurringKind.expense,
+          amount: 650,
+          repeat: RepeatKind.monthly,
+          nextDay: addDays(today, 3),
+          categoryId: Value(cats[4].id),
+        ),
+      );
+      await db.saveRecurring(
+        RecurringsCompanion.insert(
+          name: 'Платёж: Кредит',
+          icon: const Value('bank'),
+          kind: RecurringKind.fund,
+          amount: 12000,
+          repeat: RepeatKind.monthly,
+          nextDay: addDays(today, 6),
+          fundId: Value(funds.first.id),
+        ),
+      );
       final programs = await db.select(db.programs).get();
       await db.saveSession(
         program: programs.first,
@@ -167,13 +233,46 @@ void main() {
     await pumpData(tester);
 
     await tab('Деньги', '03_money');
-    await tester.tap(find.text('Аналитика и планы').hitTestable().first);
-    await pumpData(tester);
-    expect(find.text('На долги и копилки в месяц'), findsOneWidget);
-    await shot(tester, '03b_money_plan');
-    await tester.scrollUntilVisible(find.text('Кредит: как закрыть быстрее').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    expect(find.text('Можно потратить сегодня'), findsOneWidget);
+    await tester.scrollUntilVisible(
+      find.text('Копилки и долги').hitTestable(),
+      300,
+      scrollable: find.descendant(of: find.byType(MoneyOverviewTab), matching: find.byType(Scrollable)).first,
+    );
     await tester.pump(const Duration(milliseconds: 400));
-    await shot(tester, '03c_money_plan_debt');
+    await shot(tester, '03a_money_overview_more');
+    Future<void> moneyTab(String label, String name) async {
+      await tester.tap(find.descendant(of: find.byType(TabBar), matching: find.text(label)));
+      await pumpData(tester);
+      await tester.pump(const Duration(milliseconds: 400));
+      await shot(tester, name);
+    }
+
+    await moneyTab('Операции', '03b_money_ops');
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await pumpData(tester);
+    await shot(tester, '03e_money_add');
+    await back(tester);
+    await pumpData(tester);
+    await moneyTab('Аналитика', '03c_money_analytics');
+    expect(find.text('Куда уходят деньги'), findsOneWidget);
+    await moneyTab('Планы', '03d_money_plans');
+    expect(find.text('Регулярные платежи'), findsOneWidget);
+    final plans = find.descendant(of: find.byType(MoneyPlansTab), matching: find.byType(Scrollable)).first;
+    await tester.scrollUntilVisible(find.text('На долги и копилки в месяц').hitTestable(), 300, scrollable: plans);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '03g_money_plans_monthly');
+    await tester.scrollUntilVisible(find.text('Кредит: как закрыть быстрее').hitTestable(), 300, scrollable: plans);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '03h_money_plan_debt');
+    await tester.tap(find.byTooltip('Счета'));
+    await pumpData(tester);
+    await shot(tester, '03i_money_accounts');
+    await tester.tap(find.text('Наличные').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '03f_money_account');
+    await back(tester);
+    await pumpData(tester);
     await back(tester);
     await pumpData(tester);
     await tab('Спорт', '04_workouts');

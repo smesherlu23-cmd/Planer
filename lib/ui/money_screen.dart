@@ -1,20 +1,28 @@
 import 'package:drift/drift.dart' show Value;
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
+import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/icon_keys.dart';
+import '../data/money_queries.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
 import '../logic/values.dart';
+import 'money/accounts.dart';
+import 'money/analytics_tab.dart';
+import 'money/operations_tab.dart';
+import 'money/overview_tab.dart';
+import 'money/plans_tab.dart';
 import 'money_plan_screen.dart';
 import 'common.dart';
 import 'icons.dart';
 import 'theme.dart';
 
-/// Долг выплачивается: прогресс зелёный. Копилка копится: прогресс цвета раздела.
-const _debtColor = Color(0xFFEF4444);
+const debtColor = Color(0xFFEF4444);
 
+/// Деньги как отдельное приложение: обзор, операции, аналитика и планы.
 class MoneyScreen extends StatefulWidget {
   const MoneyScreen({super.key});
 
@@ -22,19 +30,36 @@ class MoneyScreen extends StatefulWidget {
   State<MoneyScreen> createState() => _MoneyScreenState();
 }
 
-class _MoneyScreenState extends State<MoneyScreen> {
-  late DateTime _month = DateTime(DateTime.now().year, DateTime.now().month);
+class _MoneyScreenState extends State<MoneyScreen> with SingleTickerProviderStateMixin {
+  late final _tabs = TabController(length: 4, vsync: this)..addListener(_showFab);
+  final _body = GlobalKey();
 
-  int get _from => dayKey(_month);
-  int get _to => dayKey(DateTime(_month.year, _month.month + 1, 0));
+  /// На новой вкладке кнопка «Операция» снова видна, даже если на прошлой её спрятала прокрутка.
+  void _showFab() {
+    final ctx = _body.currentContext;
+    if (ctx == null) return;
+    UserScrollNotification(
+      metrics: FixedScrollMetrics(
+        minScrollExtent: 0,
+        maxScrollExtent: 0,
+        pixels: 0,
+        viewportDimension: 0,
+        axisDirection: AxisDirection.down,
+        devicePixelRatio: 1,
+      ),
+      context: ctx,
+      direction: ScrollDirection.forward,
+    ).dispatch(ctx);
+  }
 
-  void _shift(int months) => setState(() => _month = DateTime(_month.year, _month.month + months));
+  @override
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    final db = context.db;
-    final theme = Theme.of(context);
-    final dark = theme.brightness == Brightness.dark;
     return ScrollFabScope(
       child: Scaffold(
         floatingActionButton: ScrollFab(
@@ -45,205 +70,59 @@ class _MoneyScreenState extends State<MoneyScreen> {
             label: const Text('Операция'),
           ),
         ),
-        body: Watch(
-          deps: [_from],
-          streams: () => [
-            db.watchTransactions(from: _from, to: _to),
-            db.watchCategories(),
-            db.watchFunds(),
-            db.watchFundValues(),
-            db.watchAllFundMoves(),
-            (db.select(db.categories)).watch(),
-          ],
-          builder: (context, v) {
-            final txs = v[0] as List<Transaction>;
-            final cats = v[1] as List<Category>;
-            final funds = v[2] as List<Fund>;
-            final values = v[3] as Map<int, double>;
-            final moves = v[4] as List<FundMove>;
-            final allCats = {for (final c in v[5] as List<Category>) c.id: c};
-            // Сколько дней месяца уже прошло, включая сегодня: для среднего расхода в день.
-            final lastDay = DateTime(_month.year, _month.month + 1, 0).day;
-            final daysGone = lastDay - daysLeftInMonth(_month, DateTime.now()) + (monthKey(DateTime.now()) == monthKey(_month) ? 1 : 0);
-            final expenses = txs.where((t) => !t.isIncome).fold<double>(0, (a, t) => a + t.amount);
-            final income = txs.where((t) => t.isIncome).fold<double>(0, (a, t) => a + t.amount);
-            final byCat = <int?, double>{};
-            for (final t in txs.where((t) => !t.isIncome)) {
-              byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
-            }
-            final catRows = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-            final limited = cats.where((c) => c.monthlyLimit != null && !c.isIncome && !byCat.containsKey(c.id)).toList();
-            final byDay = <int, List<Transaction>>{};
-            for (final t in txs) {
-              byDay.putIfAbsent(t.day, () => []).add(t);
-            }
-            final diff = income - expenses;
-
-            return ListView(
-              padding: const EdgeInsets.only(bottom: 110),
-              children: [
-                PageHeader(
-                  overline: 'доходы и расходы',
-                  title: 'Деньги',
-                  actions: [
-                    IconButton(
-                      tooltip: 'Категории',
-                      icon: const Icon(Icons.category_rounded),
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen())),
-                    ),
-                  ],
+        body: Column(
+          key: _body,
+          children: [
+            PageHeader(
+              overline: 'счета, траты и планы',
+              title: 'Деньги',
+              actions: [
+                IconButton(
+                  tooltip: 'Счета',
+                  icon: const Icon(Icons.account_balance_wallet_rounded),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const AccountsScreen())),
                 ),
-                HeroCard(
-                  colors: dark ? const [Color(0xFFB45309), Color(0xFFC2410C)] : const [Color(0xFFD97706), Color(0xFFEA580C)],
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          HeroArrow(Icons.chevron_left_rounded, onTap: () => _shift(-1)),
-                          Expanded(
-                            child: Text(
-                              monthTitle(_month.year, _month.month),
-                              textAlign: TextAlign.center,
-                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
-                            ),
-                          ),
-                          HeroArrow(Icons.chevron_right_rounded, onTap: () => _shift(1)),
-                        ],
-                      ),
-                      const SizedBox(height: 10),
-                      const Text(
-                        'Потрачено',
-                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
-                      ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(formatMoney(expenses), style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
-                      ),
-                      if (expenses > 0 && daysGone > 0)
-                        Text('в среднем ${formatMoney(expenses / daysGone)} в день', style: const TextStyle(color: Colors.white)),
-                      const SizedBox(height: 14),
-                      Row(
-                        children: [
-                          Expanded(
-                            child: HeroStat(label: 'Доходы', value: '+${formatMoney(income)}'),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: HeroStat(label: 'Осталось', value: '${diff < 0 ? '−' : '+'}${formatMoney(diff.abs())}'),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
+                IconButton(
+                  tooltip: 'Категории',
+                  icon: const Icon(Icons.category_rounded),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen())),
                 ),
-                Card(
-                  child: ListTile(
-                    contentPadding: const EdgeInsets.fromLTRB(14, 8, 12, 8),
-                    leading: const ColorIcon(Icons.insights_rounded, color: Accent.money, size: 40),
-                    title: const Text('Аналитика и планы'),
-                    subtitle: const Text('Когда закроешь кредит и накопишь при разных планах'),
-                    trailing: const Icon(Icons.chevron_right_rounded),
-                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const MoneyPlanScreen())),
-                  ),
-                ),
-                SectionTitle(
-                  'Копилки и долги',
-                  trailing: IconButton(
-                    tooltip: 'Копилка или долг',
-                    icon: const Icon(Icons.add_rounded),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
-                  ),
-                ),
-                if (funds.isEmpty)
-                  Card(
-                    child: EmptyHint(
-                      'Копилка показывает, сколько накоплено и когда дойдёшь до цели. Долг показывает остаток и срок закрытия.',
-                      icon: Icons.savings_outlined,
-                      action: FilledButton.tonal(
-                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
-                        child: const Text('Добавить'),
-                      ),
-                    ),
-                  ),
-                for (final f in funds) _FundCard(fund: f, value: values[f.id] ?? fundValue(f, 0), recent: recentMonthlyPace(moves, f.id)),
-                if (catRows.isNotEmpty || limited.isNotEmpty) ...[
-                  const SectionTitle('По категориям'),
-                  Card(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 6),
-                      child: Column(
-                        children: [
-                          for (final e in catRows) _CategoryRow(category: allCats[e.key], spent: e.value, total: expenses),
-                          for (final c in limited) _CategoryRow(category: c, spent: 0, total: expenses),
-                        ],
-                      ),
-                    ),
-                  ),
-                ],
-                const SectionTitle('Операции'),
-                if (txs.isEmpty) const Card(child: EmptyHint('За этот месяц операций нет', icon: Icons.receipt_long_outlined)),
-                for (final MapEntry(key: day, value: list) in byDay.entries) ...[
-                  _DayHeader(day: day, txs: list),
-                  GroupCard(
-                    children: [for (final t in list) _TransactionTile(t: t, category: allCats[t.categoryId])],
-                  ),
-                ],
               ],
-            );
-          },
+            ),
+            TabBar(
+              controller: _tabs,
+              isScrollable: true,
+              tabAlignment: TabAlignment.start,
+              indicatorColor: Accent.money,
+              labelColor: Theme.of(context).colorScheme.onSurface,
+              dividerColor: Colors.transparent,
+              tabs: const [
+                Tab(text: 'Обзор'),
+                Tab(text: 'Операции'),
+                Tab(text: 'Аналитика'),
+                Tab(text: 'Планы'),
+              ],
+            ),
+            Expanded(
+              child: TabBarView(
+                controller: _tabs,
+                children: [
+                  MoneyOverviewTab(openTab: (i) => _tabs.animateTo(i)),
+                  const MoneyOperationsTab(),
+                  const MoneyAnalyticsTab(),
+                  const MoneyPlansTab(),
+                ],
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
 }
 
-class _DayHeader extends StatelessWidget {
-  const _DayHeader({required this.day, required this.txs});
-  final int day;
-  final List<Transaction> txs;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final spent = txs.where((t) => !t.isIncome).fold<double>(0, (a, t) => a + t.amount);
-    final label = dayLabel(day);
-    final muted = theme.textTheme.labelLarge?.copyWith(color: theme.colorScheme.onSurfaceVariant);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(22, 10, 22, 4),
-      child: Row(
-        children: [
-          Expanded(child: Text(label[0].toUpperCase() + label.substring(1), style: muted)),
-          if (spent > 0) Text('−${formatMoney(spent)}', style: muted),
-        ],
-      ),
-    );
-  }
-}
-
-class _TransactionTile extends StatelessWidget {
-  const _TransactionTile({required this.t, required this.category});
-  final Transaction t;
-  final Category? category;
-
-  @override
-  Widget build(BuildContext context) {
-    return ListTile(
-      leading: ItemIcon(category?.icon, size: 40, fallback: 'payments'),
-      title: Text(category?.name ?? (t.isIncome ? 'Доход' : 'Без категории')),
-      subtitle: t.note == null ? null : Text(t.note!, maxLines: 1, overflow: TextOverflow.ellipsis),
-      trailing: Text(
-        '${t.isIncome ? '+' : '−'}${formatMoney(t.amount)}',
-        style: Theme.of(context).textTheme.titleSmall?.copyWith(color: t.isIncome ? Accent.habits : null, fontWeight: FontWeight.w700),
-      ),
-      onTap: () => showTransactionSheet(context, existing: t),
-    );
-  }
-}
-
-class _CategoryRow extends StatelessWidget {
-  const _CategoryRow({required this.category, required this.spent, required this.total});
+class CategoryLimitRow extends StatelessWidget {
+  const CategoryLimitRow({super.key, required this.category, required this.spent, required this.total});
   final Category? category;
   final double spent;
   final double total;
@@ -297,14 +176,14 @@ class _CategoryRow extends StatelessWidget {
 }
 
 /// Прогресс копилки или долга: доля накопленного или выплаченного. null, если цели нет.
-double? _fundProgress(Fund f, double value) {
+double? fundProgress(Fund f, double value) {
   if (f.kind == FundKind.debt) return f.initialAmount <= 0 ? 1 : 1 - value / f.initialAmount;
   if (f.target != null) return f.target! <= 0 ? 1 : value / f.target!;
   return null;
 }
 
-class _FundCard extends StatelessWidget {
-  const _FundCard({required this.fund, required this.value, required this.recent});
+class FundCard extends StatelessWidget {
+  const FundCard({super.key, required this.fund, required this.value, required this.recent});
   final Fund fund;
   final double value;
   final double? recent;
@@ -315,7 +194,7 @@ class _FundCard extends StatelessWidget {
     final f = fund;
     final isDebt = f.kind == FundKind.debt;
     final forecast = fundForecast(f, value, recentMonthly: recent);
-    final progress = _fundProgress(f, value);
+    final progress = fundProgress(f, value);
     final String line;
     if (isDebt) {
       line = 'осталось ${formatMoney(value)} из ${formatMoney(f.initialAmount)}';
@@ -348,7 +227,7 @@ class _FundCard extends StatelessWidget {
                               child: Text(f.name, style: theme.textTheme.titleMedium, overflow: TextOverflow.ellipsis),
                             ),
                             const SizedBox(width: 8),
-                            Pill(isDebt ? 'долг' : 'копилка', color: isDebt ? _debtColor : Accent.money),
+                            Pill(isDebt ? 'долг' : 'копилка', color: isDebt ? debtColor : Accent.money),
                           ],
                         ),
                         const SizedBox(height: 2),
@@ -389,99 +268,232 @@ class _FundCard extends StatelessWidget {
 // Операция
 // ---------------------------------------------------------------------------
 
-Future<void> showTransactionSheet(BuildContext context, {Transaction? existing}) {
-  return showFormSheet(context, (_) => _TransactionForm(existing: existing));
+/// Новая операция или правка старой. [initialKind] открывает сразу перевод или доход.
+Future<void> showTransactionSheet(BuildContext context, {Transaction? existing, TxKind initialKind = TxKind.expense}) {
+  return showFormSheet(context, (_) => _TransactionForm(existing: existing, initialKind: initialKind));
 }
 
+enum TxKind { expense, income, transfer }
+
 class _TransactionForm extends StatefulWidget {
-  const _TransactionForm({this.existing});
+  const _TransactionForm({this.existing, this.existingTransfer, this.initialKind = TxKind.expense});
   final Transaction? existing;
+  final Transfer? existingTransfer;
+  final TxKind initialKind;
 
   @override
   State<_TransactionForm> createState() => _TransactionFormState();
 }
 
 class _TransactionFormState extends State<_TransactionForm> {
-  late final _amount = TextEditingController(text: widget.existing == null ? '' : formatNumber(widget.existing!.amount, maxDecimals: 2));
-  late final _note = TextEditingController(text: widget.existing?.note ?? '');
-  late bool _income = widget.existing?.isIncome ?? false;
-  late int? _category = widget.existing?.categoryId;
-  late int _day = widget.existing?.day ?? todayKey();
+  late final Transaction? _tx = widget.existing;
+  late final Transfer? _tr = widget.existingTransfer;
+  late final _amount = TextEditingController(text: _initialAmount == null ? '' : formatNumber(_initialAmount!, maxDecimals: 2));
+  late final _note = TextEditingController(text: _tx?.note ?? _tr?.note ?? '');
+  late TxKind _kind = _tr != null ? TxKind.transfer : (_tx == null ? widget.initialKind : (_tx.isIncome ? TxKind.income : TxKind.expense));
+  late int? _category = _tx?.categoryId;
+  late int? _account = _tx?.accountId ?? _tr?.fromAccountId;
+  late int? _toAccount = _tr?.toAccountId;
+  late int _day = _tx?.day ?? _tr?.day ?? todayKey();
+  var _accountTouched = false;
+
+  double? get _initialAmount => _tx?.amount ?? _tr?.amount;
+
+  bool get _editing => _tx != null || _tr != null;
 
   Future<void> _save() async {
+    final db = context.db;
     final amount = parseNumber(_amount.text);
     if (amount == null || amount <= 0) return showSnack(context, 'Введи сумму');
-    await context.db.saveTransaction(
-      TransactionsCompanion(
-        id: widget.existing == null ? const Value.absent() : Value(widget.existing!.id),
-        amount: Value(amount),
-        isIncome: Value(_income),
-        categoryId: Value(_category),
-        day: Value(_day),
-        note: Value(emptyToNull(_note.text)),
-      ),
-    );
+    if (_kind == TxKind.transfer) {
+      if (_account == null || _toAccount == null) return showSnack(context, 'Выбери, откуда и куда');
+      if (_account == _toAccount) return showSnack(context, 'Счета должны быть разные');
+      if (_tx != null) await db.deleteById(db.transactions, _tx.id);
+      await db.saveTransfer(
+        TransfersCompanion(
+          id: _tr == null ? const Value.absent() : Value(_tr.id),
+          fromAccountId: Value(_account!),
+          toAccountId: Value(_toAccount!),
+          amount: Value(amount),
+          day: Value(_day),
+          note: Value(emptyToNull(_note.text)),
+        ),
+      );
+    } else {
+      if (_tr != null) await db.deleteById(db.transfers, _tr.id);
+      await db.saveTransaction(
+        TransactionsCompanion(
+          id: _tx == null ? const Value.absent() : Value(_tx.id),
+          amount: Value(amount),
+          isIncome: Value(_kind == TxKind.income),
+          categoryId: Value(_category),
+          accountId: Value(_account),
+          day: Value(_day),
+          note: Value(emptyToNull(_note.text)),
+        ),
+      );
+    }
+    if (_account != null) await db.setSetting(keyLastAccount, '$_account');
+    if (mounted) Navigator.pop(context);
+  }
+
+  Future<void> _delete() async {
+    final db = context.db;
+    if (_tx != null) await db.deleteById(db.transactions, _tx.id);
+    if (_tr != null) await db.deleteById(db.transfers, _tr.id);
     if (mounted) Navigator.pop(context);
   }
 
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        SegmentedButton<bool>(
-          segments: const [
-            ButtonSegment(value: false, label: Text('Расход')),
-            ButtonSegment(value: true, label: Text('Доход')),
-          ],
-          selected: {_income},
-          onSelectionChanged: (s) => setState(() {
-            _income = s.first;
-            _category = null;
-          }),
-        ),
-        const SizedBox(height: 16),
-        NumberField(controller: _amount, label: 'Сумма', suffix: '₽', autofocus: widget.existing == null),
-        const SizedBox(height: 12),
-        StreamBuilder<List<Category>>(
-          stream: db.watchCategories(),
-          builder: (context, snap) {
-            final cats = (snap.data ?? const <Category>[]).where((c) => c.isIncome == _income).toList();
-            return Wrap(
-              spacing: 6,
-              runSpacing: 6,
-              children: [
-                for (final c in cats)
-                  ChoiceChip(
-                    avatar: Icon(
-                      appIcon(c.icon, fallback: 'payments').icon,
-                      color: appIcon(c.icon, fallback: 'payments').color,
-                    ),
-                    label: Text(c.name),
-                    selected: _category == c.id,
-                    onSelected: (on) => setState(() => _category = on ? c.id : null),
-                  ),
+    final theme = Theme.of(context);
+    return Watch(
+      streams: () => [db.watchCategories(), db.watchAccounts(), db.watchSetting(keyLastAccount)],
+      builder: (context, v) {
+        final allCats = v[0] as List<Category>;
+        final accounts = v[1] as List<Account>;
+        final last = int.tryParse((v[2] as String?) ?? '');
+        if (!_editing && !_accountTouched && _account == null && accounts.isNotEmpty) {
+          _account = accounts.any((a) => a.id == last) ? last : accounts.first.id;
+        }
+        final cats = allCats.where((c) => c.isIncome == (_kind == TxKind.income)).toList();
+        final color = switch (_kind) {
+          TxKind.expense => theme.colorScheme.onSurface,
+          TxKind.income => Accent.habits,
+          TxKind.transfer => Accent.trackers,
+        };
+        return Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            SegmentedButton<TxKind>(
+              segments: [
+                const ButtonSegment(value: TxKind.expense, label: Text('Расход')),
+                const ButtonSegment(value: TxKind.income, label: Text('Доход')),
+                if (accounts.length >= 2 || _tr != null) const ButtonSegment(value: TxKind.transfer, label: Text('Перевод')),
               ],
-            );
-          },
-        ),
-        DayTile(day: _day, onChanged: (d) => setState(() => _day = d ?? _day)),
-        TextField(
-          controller: _note,
-          decoration: const InputDecoration(labelText: 'Заметка (необязательно)'),
-        ),
-        const SizedBox(height: 16),
-        FilledButton(onPressed: _save, child: const Text('Сохранить')),
-        if (widget.existing != null)
-          TextButton(
-            style: TextButton.styleFrom(foregroundColor: Theme.of(context).colorScheme.error),
-            onPressed: () async {
-              await db.deleteById(db.transactions, widget.existing!.id);
-              if (context.mounted) Navigator.pop(context);
+              selected: {_kind},
+              onSelectionChanged: (s) => setState(() {
+                _kind = s.first;
+                _category = null;
+              }),
+            ),
+            const SizedBox(height: 16),
+            TextField(
+              controller: _amount,
+              autofocus: !_editing,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.displaySmall?.copyWith(color: color, fontWeight: FontWeight.w700),
+              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              inputFormatters: [FilteringTextInputFormatter.allow(RegExp(r'[0-9.,\s]'))],
+              decoration: InputDecoration(
+                hintText: '0',
+                suffixText: '₽',
+                prefixText: switch (_kind) {
+                  TxKind.expense => '−',
+                  TxKind.income => '+',
+                  TxKind.transfer => '',
+                },
+              ),
+            ),
+            const SizedBox(height: 14),
+            if (_kind == TxKind.transfer) ...[
+              _label(context, 'Откуда'),
+              AccountChips(accounts: accounts, selected: _account, onSelected: (id) => setState(() => _account = id)),
+              const SizedBox(height: 10),
+              _label(context, 'Куда'),
+              AccountChips(accounts: accounts, selected: _toAccount, onSelected: (id) => setState(() => _toAccount = id)),
+            ] else ...[
+              _label(context, 'Категория'),
+              Wrap(
+                spacing: 6,
+                runSpacing: 6,
+                children: [
+                  for (final c in cats)
+                    ChoiceChip(
+                      avatar: Icon(
+                        appIcon(c.icon, fallback: 'payments').icon,
+                        color: appIcon(c.icon, fallback: 'payments').color,
+                      ),
+                      label: Text(c.name),
+                      selected: _category == c.id,
+                      onSelected: (on) => setState(() => _category = on ? c.id : null),
+                    ),
+                ],
+              ),
+              if (accounts.isNotEmpty) ...[
+                const SizedBox(height: 12),
+                _label(context, _kind == TxKind.income ? 'На счёт' : 'Со счёта'),
+                AccountChips(
+                  accounts: accounts,
+                  selected: _account,
+                  onSelected: (id) => setState(() {
+                    _account = id;
+                    _accountTouched = true;
+                  }),
+                ),
+              ],
+            ],
+            DayTile(day: _day, onChanged: (d) => setState(() => _day = d ?? _day)),
+            TextField(
+              controller: _note,
+              decoration: const InputDecoration(labelText: 'Заметка (необязательно)'),
+            ),
+            const SizedBox(height: 16),
+            FilledButton(onPressed: _save, child: const Text('Сохранить')),
+            if (_editing)
+              TextButton(
+                style: TextButton.styleFrom(foregroundColor: theme.colorScheme.error),
+                onPressed: _delete,
+                child: const Text('Удалить'),
+              ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+Widget _label(BuildContext context, String text) => Padding(
+  padding: const EdgeInsets.only(bottom: 6),
+  child: Text(text, style: Theme.of(context).textTheme.labelLarge?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant)),
+);
+
+/// Правка перевода между счетами.
+Future<void> showTransferSheet(BuildContext context, Transfer existing) {
+  return showFormSheet(context, (_) => _TransactionForm(existingTransfer: existing));
+}
+
+/// Выбор счёта чипами. [allowNone]: можно снять выбор.
+class AccountChips extends StatelessWidget {
+  const AccountChips({super.key, required this.accounts, required this.selected, required this.onSelected, this.allowNone = false});
+  final List<Account> accounts;
+  final int? selected;
+  final ValueChanged<int?> onSelected;
+  final bool allowNone;
+
+  @override
+  Widget build(BuildContext context) {
+    return Wrap(
+      spacing: 6,
+      runSpacing: 6,
+      children: [
+        for (final a in accounts)
+          ChoiceChip(
+            avatar: Icon(
+              appIcon(a.icon, fallback: 'card').icon,
+              color: appIcon(a.icon, fallback: 'card').color,
+            ),
+            label: Text(a.name),
+            selected: selected == a.id,
+            onSelected: (on) {
+              if (on) {
+                onSelected(a.id);
+              } else if (allowNone) {
+                onSelected(null);
+              }
             },
-            child: const Text('Удалить'),
           ),
       ],
     );
@@ -511,7 +523,7 @@ class FundDetailScreen extends StatelessWidget {
         final value = fundValue(f, moves.fold<double>(0, (a, m) => a + m.amount));
         final isDebt = f.kind == FundKind.debt;
         final forecast = fundForecast(f, value, recentMonthly: recentMonthlyPace(moves, f.id));
-        final progress = _fundProgress(f, value);
+        final progress = fundProgress(f, value);
         final color = isDebt ? Accent.habits : Accent.money;
         final facts = [
           if (isDebt) 'было ${formatMoney(f.initialAmount)}',
@@ -632,7 +644,7 @@ class FundDetailScreen extends StatelessWidget {
                       ListTile(
                         leading: IconBadge(
                           m.amount >= 0 ? Icons.arrow_downward_rounded : Icons.arrow_upward_rounded,
-                          color: m.amount >= 0 ? Accent.habits : _debtColor,
+                          color: m.amount >= 0 ? Accent.habits : debtColor,
                         ),
                         title: Text(
                           '${m.amount >= 0 ? '+' : '−'}${formatMoney(m.amount.abs())}',
@@ -661,6 +673,8 @@ class FundDetailScreen extends StatelessWidget {
     final amount = TextEditingController(text: f.monthlyAmount == null || sign < 0 ? '' : formatNumber(f.monthlyAmount!));
     final note = TextEditingController();
     var day = todayKey();
+    int? account;
+    var accountTouched = false;
     return showFormSheet(
       context,
       (sheetContext) => StatefulBuilder(
@@ -674,6 +688,33 @@ class FundDetailScreen extends StatelessWidget {
             ),
             const SizedBox(height: 16),
             NumberField(controller: amount, label: 'Сумма', suffix: '₽', autofocus: true),
+            Watch(
+              streams: () => [sheetContext.db.watchAccounts(), sheetContext.db.watchSetting(keyLastAccount)],
+              builder: (context, v) {
+                final accounts = v[0] as List<Account>;
+                if (accounts.isEmpty) return const SizedBox.shrink();
+                final last = int.tryParse((v[1] as String?) ?? '');
+                if (!accountTouched && account == null) account = accounts.any((a) => a.id == last) ? last : accounts.first.id;
+                return Padding(
+                  padding: const EdgeInsets.only(top: 12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      _label(context, sign < 0 ? 'На счёт' : 'Со счёта'),
+                      AccountChips(
+                        accounts: accounts,
+                        selected: account,
+                        allowNone: true,
+                        onSelected: (id) => setState(() {
+                          account = id;
+                          accountTouched = true;
+                        }),
+                      ),
+                    ],
+                  ),
+                );
+              },
+            ),
             DayTile(day: day, onChanged: (d) => setState(() => day = d ?? day)),
             TextField(
               controller: note,
@@ -684,7 +725,18 @@ class FundDetailScreen extends StatelessWidget {
               onPressed: () async {
                 final v = parseNumber(amount.text);
                 if (v == null || v <= 0) return showSnack(sheetContext, 'Введи сумму');
-                await sheetContext.db.addFundMove(f.id, v * sign, day: day, note: emptyToNull(note.text));
+                final db = sheetContext.db;
+                await db
+                    .into(db.fundMoves)
+                    .insert(
+                      FundMovesCompanion.insert(
+                        fundId: f.id,
+                        amount: v * sign,
+                        day: day,
+                        note: Value(emptyToNull(note.text)),
+                        accountId: Value(account),
+                      ),
+                    );
                 if (sheetContext.mounted) Navigator.pop(sheetContext);
               },
               child: const Text('Сохранить'),
