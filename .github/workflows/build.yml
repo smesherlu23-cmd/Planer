@@ -61,6 +61,32 @@ jobs:
             echo "PLANER_KEYSTORE_PATH=$RUNNER_TEMP/planer.jks" >> "$GITHUB_ENV"
           fi
 
+      - name: SQLite для Android с повтором
+        run: |
+          # Сборка скачивает libsqlite3 с github.com. При ответе 504 приходит не тот файл и сборка падает.
+          # Скачиваем заранее с повтором, сверяем хэши и указываем сборке готовую папку.
+          pkg="$(grep -o '"rootUri": *"file://[^"]*/sqlite3-[0-9.]*"' .dart_tool/package_config.json | sed 's/.*"file:\/\///; s/"$//')"
+          hashes="/$pkg/lib/src/hook/asset_hashes.dart"
+          tag="$(grep "releaseTag = " "$hashes" | sed "s/.*'\(.*\)'.*/\1/")"
+          dir="$RUNNER_TEMP/sqlite3"
+          mkdir -p "$dir"
+          for abi in arm arm64 x64; do
+            file="libsqlite3.$abi.android.so"
+            want="$(grep "'$file'" "$hashes" | sed "s/.*: *'\(.*\)'.*/\1/")"
+            ok=""
+            for attempt in 1 2 3 4 5 6; do
+              if curl -fsSL --retry 3 --retry-all-errors --retry-delay 10 -o "$dir/$file" \
+                  "https://github.com/simolus3/sqlite3.dart/releases/download/$tag/$file" \
+                  && [ "$(sha256sum "$dir/$file" | cut -d' ' -f1)" = "$want" ]; then ok=1; break; fi
+              echo "$file не скачался, попытка $attempt из 6."
+              sleep 20
+            done
+            if [ -z "$ok" ]; then echo "Не скачалось заранее, сборка попробует сама."; exit 0; fi
+          done
+          printf '\nhooks:\n  user_defines:\n    sqlite3:\n      source: test-sqlite3\n      directory: %s/\n' "$dir" >> pubspec.yaml
+          rm -rf .dart_tool/hooks_runner
+          ls -l "$dir"
+
       - name: Gradle с запасных адресов
         run: |
           # github.com иногда отвечает 504 на скачивание Gradle. Пробуем несколько адресов и даём Gradle готовый файл.
@@ -91,6 +117,7 @@ jobs:
           for attempt in 1 2 3; do
             if flutter build apk --release --build-number=${{ github.run_number }}; then break; fi
             if [ "$attempt" = 3 ]; then exit 1; fi
+            rm -rf .dart_tool/hooks_runner
             echo "Сборка не удалась, попытка $attempt из 3. Повтор через 30 секунд."
             sleep 30
           done
