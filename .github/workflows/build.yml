@@ -107,6 +107,11 @@ jobs:
           done
           echo "Не удалось скачать Gradle заранее, сборка попробует сама."
 
+      - name: Зеркало Maven Central для встроенной сборки Flutter
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cp .github/gradle/mirror.init.gradle ~/.gradle/init.d/
+
       - name: Сборка
         env:
           PLANER_KEYSTORE_PASSWORD: ${{ secrets.PLANER_KEYSTORE_PASSWORD }}

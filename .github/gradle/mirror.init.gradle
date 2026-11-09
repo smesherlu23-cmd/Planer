@@ -1,0 +1,21 @@
+// Maven Central через зеркало Google для встроенной сборки Flutter (flutter_tools/gradle): она берёт
+// репозитории только из своих настроек. Сам Maven Central иногда отвечает 429 или уводит на github.com с 504.
+// В репозитории проектов не добавляем: встроенная сборка это запрещает. Для нашего проекта зеркало
+// прописано в android/build.gradle.kts и android/settings.gradle.kts.
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+
+def mirrorFirst = { RepositoryHandler repos ->
+    if (repos.findByName('MavenCentralGoogleMirror') != null) return
+    def m = repos.maven {
+        name = 'MavenCentralGoogleMirror'
+        url = mirror
+    }
+    repos.remove(m)
+    repos.addFirst(m)
+}
+
+// Только туда, где настройки сами объявили репозитории (у встроенной сборки Flutter это google() и mavenCentral()).
+settingsEvaluated { settings ->
+    def repos = settings.dependencyResolutionManagement.repositories
+    if (!repos.isEmpty()) mirrorFirst(repos)
+}
