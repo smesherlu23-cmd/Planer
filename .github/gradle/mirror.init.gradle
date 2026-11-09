@@ -1,0 +1,22 @@
+// Maven Central через зеркало Google: сам Maven Central иногда отвечает 429 или уводит на github.com с ответом 504.
+def mirror = 'https://maven-central.storage-download.googleapis.com/maven2/'
+
+def mirrorFirst = { RepositoryHandler repos ->
+    if (repos.findByName('MavenCentralGoogleMirror') != null) return
+    def m = repos.maven {
+        name = 'MavenCentralGoogleMirror'
+        url = mirror
+    }
+    repos.remove(m)
+    repos.addFirst(m)
+}
+
+beforeSettings { settings ->
+    mirrorFirst(settings.pluginManagement.repositories)
+    mirrorFirst(settings.dependencyResolutionManagement.repositories)
+}
+
+allprojects {
+    mirrorFirst(buildscript.repositories)
+    mirrorFirst(repositories)
+}
