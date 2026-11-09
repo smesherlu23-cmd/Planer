@@ -33,7 +33,16 @@ enum GoalKind {
 
   /// Баланс копилки или остаток долга.
   fund,
+
+  /// Значение вносится вручную: «прочитать 12 книг», «уровень Faceit 8».
+  manual,
+
+  /// Проект из этапов: прогресс считается по сделанным шагам.
+  steps,
 }
+
+/// Сфера жизни, к которой относится цель.
+enum GoalArea { health, money, career, study, relations, hobby, other }
 
 enum FundKind {
   /// Копилка: баланс растёт от взносов.
@@ -55,6 +64,9 @@ enum JournalKind {
 
   /// Просто заметка.
   note,
+
+  /// Обзор месяца.
+  month,
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +152,46 @@ class Goals extends Table {
   IntColumn get startDay => integer()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// Сфера жизни. null у целей до версии 5.
+  IntColumn get area => intEnum<GoalArea>().nullable()();
+
+  /// Единица для цели с ручными отметками: «книг», «кг».
+  TextColumn get unit => text().nullable()();
+
+  /// Зачем мне это: главный мотив.
+  TextColumn get why => text().nullable()();
+
+  /// Что может помешать (метод WOOP).
+  TextColumn get obstacle => text().nullable()();
+
+  /// План «если…, то…» на этот случай.
+  TextColumn get plan => text().nullable()();
+
+  /// Привычки, которые ведут к цели: id через запятую.
+  TextColumn get habitIds => text().nullable()();
+
+  /// День, когда цель отмечена достигнутой.
+  IntColumn get achievedDay => integer().nullable()();
+}
+
+/// Этап цели: шаг проекта или промежуточная веха.
+class GoalSteps extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get goalId => integer().references(Goals, #id, onDelete: KeyAction.cascade)();
+  TextColumn get title => text()();
+  IntColumn get dueDay => integer().nullable()();
+  IntColumn get doneDay => integer().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+}
+
+/// Ручная отметка прогресса цели: значение на день.
+class GoalCheckins extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get goalId => integer().references(Goals, #id, onDelete: KeyAction.cascade)();
+  IntColumn get day => integer()();
+  RealColumn get value => real()();
+  TextColumn get note => text().nullable()();
 }
 
 class Categories extends Table {
@@ -255,6 +307,30 @@ class JournalEntries extends Table {
   DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
   IntColumn get mood => integer().nullable()();
   TextColumn get body => text().withDefault(const Constant(''))();
+
+  /// Заголовок заметки.
+  TextColumn get title => text().nullable()();
+
+  /// Энергия от 1 до 5.
+  IntColumn get energy => integer().nullable()();
+
+  /// Теги через запятую: «работа», «спорт», «плохой сон».
+  TextColumn get tags => text().nullable()();
+
+  /// Победы: что получилось. По строке на пункт.
+  TextColumn get wins => text().nullable()();
+
+  /// За что благодарен.
+  TextColumn get gratitude => text().nullable()();
+
+  /// Урок: что не получилось и почему, что улучшить.
+  TextColumn get lesson => text().nullable()();
+
+  /// Главное на завтра, на следующую неделю или месяц.
+  TextColumn get focus => text().nullable()();
+
+  /// Заметка к цели.
+  IntColumn get goalId => integer().nullable().references(Goals, #id, onDelete: KeyAction.setNull)();
 }
 
 /// Свои напоминания, не привязанные к привычке: «Итог дня», «Обзор недели».
@@ -374,6 +450,8 @@ class Settings extends Table {
     HabitLogs,
     Funds,
     Goals,
+    GoalSteps,
+    GoalCheckins,
     Categories,
     Transactions,
     FundMoves,
@@ -397,7 +475,20 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
+
+  /// Добавить колонку, если её ещё нет: таблица могла быть создана уже новой.
+  Future<void> _addColumnOnce(Migrator m, TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
+    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+    if (!cols.any((c) => c.read<String>('name') == column.name)) await m.addColumn(table, column);
+  }
+
+  Future<void> _createTableOnce(Migrator m, TableInfo<Table, Object?> table) async {
+    final rows = await customSelect("SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?", variables: [
+      Variable<String>(table.actualTableName),
+    ]).get();
+    if (rows.isEmpty) await m.createTable(table);
+  }
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -437,6 +528,26 @@ class AppDatabase extends _$AppDatabase {
         await add(meals, meals.carbs);
         await add(meals, meals.slot);
         await fillTemplateMacros();
+      }
+      if (from < 5) {
+        // Версия 5: цели с этапами и ручными отметками, сферы, мотив и план; дневник с победами, тегами и фокусом.
+        await _createTableOnce(m, goalSteps);
+        await _createTableOnce(m, goalCheckins);
+        for (final c in <GeneratedColumn<Object>>[goals.area, goals.unit, goals.why, goals.obstacle, goals.plan, goals.habitIds, goals.achievedDay]) {
+          await _addColumnOnce(m, goals, c);
+        }
+        for (final c in <GeneratedColumn<Object>>[
+          journalEntries.title,
+          journalEntries.energy,
+          journalEntries.tags,
+          journalEntries.wins,
+          journalEntries.gratitude,
+          journalEntries.lesson,
+          journalEntries.focus,
+          journalEntries.goalId,
+        ]) {
+          await _addColumnOnce(m, journalEntries, c);
+        }
       }
     },
     beforeOpen: (details) async {

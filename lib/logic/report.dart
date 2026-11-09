@@ -1,11 +1,14 @@
-/// Отчёт за неделю: всё, что произошло с понедельника по воскресенье.
+/// Итоги за день, неделю или месяц: всё, что произошло, прогресс целей и сравнение с прошлым периодом.
 library;
 
 import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
+import '../data/goal_queries.dart';
 import 'calc.dart';
 import 'food.dart';
+import 'goals.dart';
+import 'journal.dart';
 import 'minimum.dart';
 import 'sleep.dart';
 import 'values.dart';
@@ -51,6 +54,75 @@ class FoodWeek {
   final FoodGoals goals;
 }
 
+enum ReportPeriod { day, week, month }
+
+/// Границы периода, в который входит [day].
+({int from, int to}) periodRange(ReportPeriod p, int day) {
+  switch (p) {
+    case ReportPeriod.day:
+      return (from: day, to: day);
+    case ReportPeriod.week:
+      final m = weekStart(day);
+      return (from: m, to: addDays(m, 6));
+    case ReportPeriod.month:
+      final d = dayFromKey(day);
+      return (from: dayKey(DateTime(d.year, d.month)), to: dayKey(DateTime(d.year, d.month + 1, 0)));
+  }
+}
+
+/// Сдвинуть период на [n] вперёд или назад.
+int shiftPeriod(ReportPeriod p, int from, int n) => switch (p) {
+  ReportPeriod.day => addDays(from, n),
+  ReportPeriod.week => addDays(from, 7 * n),
+  ReportPeriod.month => () {
+    final d = dayFromKey(from);
+    return dayKey(DateTime(d.year, d.month + n));
+  }(),
+};
+
+String periodTitle(ReportPeriod p, int from, int to) => switch (p) {
+  ReportPeriod.day => formatDayLong(from),
+  ReportPeriod.week => '${formatDay(from)} – ${formatDay(to)}',
+  ReportPeriod.month => monthName(from),
+};
+
+/// Какой обзор пишется за период.
+JournalKind reviewKind(ReportPeriod p) => switch (p) {
+  ReportPeriod.day => JournalKind.day,
+  ReportPeriod.week => JournalKind.week,
+  ReportPeriod.month => JournalKind.month,
+};
+
+/// Как цель сдвинулась за период.
+class GoalMove {
+  GoalMove(this.goal, this.status, this.before, this.after, this.text);
+  final Goal goal;
+  final GoalStatus status;
+  final double? before;
+  final double? after;
+
+  /// «67 → 67,8 кг (+0,8)».
+  final String text;
+
+  double? get delta => before == null || after == null ? null : after! - before!;
+
+  /// Сдвиг в сторону цели.
+  bool get forward {
+    final d = delta;
+    if (d == null || d == 0) return false;
+    return (status.target >= status.start) == (d > 0);
+  }
+}
+
+/// Цифры прошлого периода для сравнения.
+class PrevStats {
+  PrevStats({required this.habitsRate, required this.moodAvg, required this.expenses, required this.workoutsDone});
+  final double? habitsRate;
+  final double? moodAvg;
+  final double expenses;
+  final int workoutsDone;
+}
+
 class WeekReport {
   WeekReport({
     this.sleep,
@@ -71,7 +143,31 @@ class WeekReport {
     required this.review,
     this.hardDays = 0,
     this.workoutsMinimum = 0,
+    this.period = ReportPeriod.week,
+    this.days = 7,
+    this.goals = const [],
+    this.moods = const [],
+    this.wins = const [],
+    this.tags = const [],
+    this.prev,
   });
+
+  final ReportPeriod period;
+
+  /// Сколько дней периода уже прошло.
+  final int days;
+  final List<GoalMove> goals;
+  final List<(int day, int? mood)> moods;
+
+  /// Победы из итогов дня.
+  final List<(int day, String text)> wins;
+
+  /// Теги за период и сколько раз встречались.
+  final List<(String, int)> tags;
+  final PrevStats? prev;
+
+  /// Доля выполненных привычек. null, если ничего не планировалось.
+  double? get habitsRate => habitsPlanned == 0 ? null : habitsDone / habitsPlanned;
 
   /// Сколько дней недели отмечено как тяжёлые.
   final int hardDays;
@@ -102,7 +198,11 @@ class WeekReport {
   /// Текст для копирования: отправить в чат, сохранить, показать Claude.
   String toText() {
     final b = StringBuffer();
-    b.writeln('Planer: неделя ${formatDay(from)} – ${formatDay(to, withYear: true)}');
+    b.writeln(switch (period) {
+      ReportPeriod.day => 'Planer: итоги дня, ${formatDay(from, withYear: true)}',
+      ReportPeriod.week => 'Planer: неделя ${formatDay(from)} – ${formatDay(to, withYear: true)}',
+      ReportPeriod.month => 'Planer: ${monthName(from).toLowerCase()}',
+    });
     if (hardDays > 0) b.writeln('Тяжёлых дней: $hardDays');
     if (habits.isNotEmpty) {
       b.writeln();
@@ -155,22 +255,57 @@ class WeekReport {
         'норма в ${fd.onTarget} из ${fd.days} дней${fd.minimum > 0 ? ', минимум в ${fd.minimum}' : ''}',
       );
     }
-    if (dayNotes > 0) {
+    if (goals.isNotEmpty) {
       b.writeln();
-      b.writeln('Итогов дня: $dayNotes из 7${moodAvg == null ? '' : ', среднее настроение ${formatNumber(moodAvg!)}'}');
+      b.writeln('Цели:');
+      for (final g in goals) {
+        b.writeln('- ${g.goal.name}: ${g.text}, ${goalPaceLabel(g.status.pace).toLowerCase()}');
+      }
     }
-    if (review != null && review!.body.trim().isNotEmpty) {
+    if (dayNotes > 0 && period != ReportPeriod.day) {
       b.writeln();
-      b.writeln('Обзор недели:');
-      b.writeln(review!.body.trim());
+      b.writeln('Итогов дня: $dayNotes из $days${moodAvg == null ? '' : ', среднее настроение ${formatNumber(moodAvg!)}'}');
+    }
+    if (tags.isNotEmpty) b.writeln('Чаще всего: ${tags.take(5).map((t) => '${t.$1} (${t.$2})').join(', ')}');
+    if (wins.isNotEmpty) {
+      b.writeln();
+      b.writeln('Победы:');
+      for (final (_, w) in wins.take(15)) {
+        b.writeln('- $w');
+      }
+    }
+    final r = review;
+    if (r != null) {
+      final f = journalFields(r.kind);
+      void section(String? label, String? text) {
+        final lines = listLines(text);
+        if (label == null || lines.isEmpty) return;
+        b.writeln();
+        b.writeln('$label:');
+        for (final l in lines) {
+          b.writeln(lines.length > 1 ? '- $l' : l);
+        }
+      }
+
+      if (period == ReportPeriod.day && r.mood != null) b.writeln('Настроение: ${r.mood} из 10');
+      if (period != ReportPeriod.day) section(f.wins, r.wins);
+      if (period == ReportPeriod.day) section(f.gratitude, r.gratitude);
+      section(f.lesson, r.lesson);
+      section(f.focus, r.focus);
+      section(period == ReportPeriod.day ? f.body : 'Обзор', r.body);
     }
     return b.toString().trimRight();
   }
 }
 
-Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) async {
-  final from = monday;
-  final to = addDays(monday, 6);
+Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) => buildReport(db, ReportPeriod.week, monday, today: today);
+
+/// Итоги периода, в который входит [day].
+Future<WeekReport> buildReport(AppDatabase db, ReportPeriod period, int day, {int? today, bool compare = true}) async {
+  final range = periodRange(period, day);
+  final from = range.from;
+  final to = range.to;
+  final monday = from;
   final t = today ?? todayKey();
   // Неделя, которая ещё идёт, считается только до сегодня.
   final until = to < t ? to : t;
@@ -243,7 +378,48 @@ Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) asy
     for (final j in dayNotes)
       if (j.mood != null) j.mood!,
   ];
-  final review = journal.where((j) => j.kind == JournalKind.week && j.day == monday).firstOrNull;
+  final rk = reviewKind(period);
+  final review = journal.where((j) => j.kind == rk && j.day == monday).firstOrNull;
+  final tagCount = <String, int>{};
+  for (final j in dayNotes) {
+    for (final tag in parseTags(j.tags)) {
+      tagCount[tag] = (tagCount[tag] ?? 0) + 1;
+    }
+  }
+  final tags = [for (final e in tagCount.entries) (e.key, e.value)]..sort((a, b) => b.$2.compareTo(a.$2));
+  final wins = [
+    for (final j in dayNotes..sort((a, b) => a.day.compareTo(b.day)))
+      for (final w in listLines(j.wins)) (j.day, w),
+  ];
+
+  // Цели: где были до периода и где сейчас.
+  final goalRows = await (db.select(db.goals)..where((g) => g.archived.equals(false))).get();
+  final sources = await db.loadGoalSources();
+  final goalMoves = <GoalMove>[];
+  for (final g in goalRows) {
+    if (g.achievedDay != null && g.achievedDay! < from) continue;
+    final st = goalStatus(g, sources, today: until);
+    final before = goalValueAt(g, sources, addDays(from, -1)) ?? (g.startDay < from ? null : goalBounds(g, sources).start);
+    final after = goalValueAt(g, sources, until);
+    if (after == null) continue;
+    String f(double v) => formatGoalValue(g, sources, v);
+    String text;
+    if (before == null || before == after) {
+      text = before == null ? f(after) : '${f(after)}, без изменений';
+    } else {
+      final d = after - before;
+      final sign = d > 0 ? '+' : '−';
+      final abs = goalIsMoney(g) ? formatMoney(d.abs()) : formatNumber(d.abs(), maxDecimals: 2);
+      text = '${f(before)} → ${f(after)} ($sign$abs)';
+    }
+    goalMoves.add(GoalMove(g, st, before, after, text));
+  }
+
+  PrevStats? prev;
+  if (compare) {
+    final p = await buildReport(db, period, shiftPeriod(period, from, -1), today: t, compare: false);
+    prev = PrevStats(habitsRate: p.habitsRate, moodAvg: p.moodAvg, expenses: p.expenses, workoutsDone: p.workoutsDone);
+  }
 
   final settings = {for (final r in await db.select(db.settings).get()) r.key: r.value};
   final sleepGoals = SleepGoals.from(settings);
@@ -285,5 +461,12 @@ Future<WeekReport> buildWeekReport(AppDatabase db, int monday, {int? today}) asy
     moodAvg: moods.isEmpty ? null : moods.reduce((a, b) => a + b) / moods.length,
     dayNotes: dayNotes.length,
     review: review,
+    period: period,
+    days: until < from ? 0 : daysBetween(from, until) + 1,
+    goals: goalMoves,
+    moods: moodSeries(journal, from: from, to: to),
+    wins: wins,
+    tags: tags,
+    prev: prev,
   );
 }
