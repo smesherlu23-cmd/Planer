@@ -233,6 +233,49 @@ void main() {
     await tester.scrollUntilVisible(find.text('Съедено').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
     await tester.pump(const Duration(milliseconds: 400));
     await shot(tester, '13c_food_meals');
+    // Статистика за 30 дней.
+    await tester.scrollUntilVisible(find.text('30 дней').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await tester.tap(find.text('30 дней').hitTestable());
+    await pumpData(tester);
+    await shot(tester, '13d_food_stats');
+    await back(tester);
+    await pumpData(tester);
+
+    // Поиск по справочнику и запись в граммах.
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Питание').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '13i_food_insight');
+    await tester.tap(find.text('Добавить').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '13e_food_search');
+    await tester.enterText(find.byType(TextField).first, 'банан');
+    await pumpData(tester);
+    expect(find.text('Банан'), findsWidgets);
+    await tester.tap(find.text('Банан').hitTestable().last);
+    await pumpData(tester);
+    await shot(tester, '13f_food_amount');
+    await tester.tap(find.text('Записать').hitTestable());
+    await pumpData(tester);
+    final eaten = await tester.runAsync(() => db.mealsBetween(today, today));
+    expect(eaten!.any((m) => m.name == 'Банан' && m.grams == 120 && (m.kcal - 115.2).abs() < 0.01), isTrue);
+    // Подсказка «Записано» не должна закрывать пункты меню дальше.
+    tester.state<ScaffoldMessengerState>(find.byType(ScaffoldMessenger).first).removeCurrentSnackBar();
+    await pumpData(tester);
+
+    // Мои блюда и рецепт.
+    await tester.tap(find.byTooltip('Мои блюда и рецепты'));
+    await pumpData(tester);
+    await shot(tester, '13g_food_library');
+    await tester.tap(find.text('Рецепт').hitTestable().first);
+    await pumpData(tester);
+    expect(find.text('Новый рецепт'), findsOneWidget);
+    await shot(tester, '13h_food_recipe');
+    await back(tester);
+    await pumpData(tester);
+    await back(tester);
+    await pumpData(tester);
     await back(tester);
     await pumpData(tester);
     await openFromMore('Цели', '07_goals');

@@ -16,8 +16,17 @@ SleepLog night(int id, int wakeDay, int bed, int wake) {
   return SleepLog(id: id, day: wakeDay, bedAt: t.bedAt, wakeAt: t.wakeAt);
 }
 
-/// Убрать из базы всё, что появилось в версии 4.
+/// Убрать из базы всё, что появилось в версии 5.
+Future<void> downgradeToV4(AppDatabase db) async {
+  for (final (table, column) in [('foods', 'grams'), ('foods', 'ingredients'), ('meals', 'grams')]) {
+    await db.customStatement('ALTER TABLE "$table" DROP COLUMN "$column"');
+  }
+  await db.customStatement('PRAGMA user_version = 4');
+}
+
+/// Убрать из базы всё, что появилось в версиях 4 и 5.
 Future<void> downgradeToV3(AppDatabase db) async {
+  await downgradeToV4(db);
   for (final (table, column) in [('foods', 'fat'), ('foods', 'carbs'), ('meals', 'fat'), ('meals', 'carbs'), ('meals', 'slot')]) {
     await db.customStatement('ALTER TABLE "$table" DROP COLUMN "$column"');
   }
