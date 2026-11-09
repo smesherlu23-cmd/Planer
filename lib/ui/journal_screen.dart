@@ -65,62 +65,66 @@ class _JournalScreenState extends State<JournalScreen> {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Записи')),
-      floatingActionButton: FloatingActionButton(heroTag: null, onPressed: () => _create(context), child: const Icon(Icons.add_rounded)),
-      body: Column(
-        children: [
-          SingleChildScrollView(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: Row(
-              children: [
-                ChoiceChip(
-                  label: const Text('Все'),
-                  showCheckmark: false,
-                  selected: _filter == null,
-                  onSelected: (_) => setState(() => _filter = null),
-                ),
-                for (final k in JournalKind.values) ...[
-                  const SizedBox(width: 8),
+    return ScrollFabScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Записи')),
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton(heroTag: null, onPressed: () => _create(context), child: const Icon(Icons.add_rounded)),
+        ),
+        body: Column(
+          children: [
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: Row(
+                children: [
                   ChoiceChip(
-                    avatar: Icon(journalKindIcon(k), color: Accent.journal),
-                    label: Text(journalKindLabel(k)),
+                    label: const Text('Все'),
                     showCheckmark: false,
-                    selected: _filter == k,
-                    onSelected: (_) => setState(() => _filter = k),
+                    selected: _filter == null,
+                    onSelected: (_) => setState(() => _filter = null),
                   ),
-                ],
-              ],
-            ),
-          ),
-          Expanded(
-            child: Watch(
-              deps: [_filter],
-              streams: () => [db.watchJournal(kind: _filter)],
-              builder: (context, v) {
-                final entries = v[0] as List<JournalEntry>;
-                if (entries.isEmpty) {
-                  return const EmptyHint(
-                    'Итог дня: 3 дела и настроение перед сном. Через месяц это доказательство, что ты движешься.',
-                    icon: Icons.auto_stories_rounded,
-                  );
-                }
-                return ListView(
-                  padding: const EdgeInsets.only(bottom: 96),
-                  children: [
-                    for (final e in entries)
-                      _EntryCard(
-                        entry: e,
-                        preview: _preview(e.body),
-                        onTap: () => openJournalEditor(context, kind: e.kind, day: e.day, existing: e),
-                      ),
+                  for (final k in JournalKind.values) ...[
+                    const SizedBox(width: 8),
+                    ChoiceChip(
+                      avatar: Icon(journalKindIcon(k), color: Accent.journal),
+                      label: Text(journalKindLabel(k)),
+                      showCheckmark: false,
+                      selected: _filter == k,
+                      onSelected: (_) => setState(() => _filter = k),
+                    ),
                   ],
-                );
-              },
+                ],
+              ),
             ),
-          ),
-        ],
+            Expanded(
+              child: Watch(
+                deps: [_filter],
+                streams: () => [db.watchJournal(kind: _filter)],
+                builder: (context, v) {
+                  final entries = v[0] as List<JournalEntry>;
+                  if (entries.isEmpty) {
+                    return const EmptyHint(
+                      'Итог дня: 3 дела и настроение перед сном. Через месяц это доказательство, что ты движешься.',
+                      icon: Icons.auto_stories_rounded,
+                    );
+                  }
+                  return ListView(
+                    padding: const EdgeInsets.only(bottom: 96),
+                    children: [
+                      for (final e in entries)
+                        _EntryCard(
+                          entry: e,
+                          preview: _preview(e.body),
+                          onTap: () => openJournalEditor(context, kind: e.kind, day: e.day, existing: e),
+                        ),
+                    ],
+                  );
+                },
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }

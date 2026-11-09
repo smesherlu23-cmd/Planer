@@ -33,39 +33,43 @@ class GoalsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Цели')),
-      floatingActionButton: FloatingActionButton(
-        heroTag: null,
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalEditScreen())),
-        child: const Icon(Icons.add_rounded),
-      ),
-      body: Watch(
-        streams: () => [db.watchGoals(), db.watchTrackers(), db.watchAllEntries(), db.watchFundValues()],
-        builder: (context, v) {
-          final goals = v[0] as List<Goal>;
-          final trackers = {for (final t in v[1] as List<Tracker>) t.id: t};
-          final entries = v[2] as List<TrackerEntry>;
-          final fundValues = v[3] as Map<int, double>;
-          if (goals.isEmpty) {
-            return const EmptyHint(
-              icon: Icons.flag_rounded,
-              'Цель это измеримый результат к сроку: «Вес 73 кг», «Закрыть кредит». Она берёт значение из трекера или копилки и показывает прогноз.',
+    return ScrollFabScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Цели')),
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton(
+            heroTag: null,
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const GoalEditScreen())),
+            child: const Icon(Icons.add_rounded),
+          ),
+        ),
+        body: Watch(
+          streams: () => [db.watchGoals(), db.watchTrackers(), db.watchAllEntries(), db.watchFundValues()],
+          builder: (context, v) {
+            final goals = v[0] as List<Goal>;
+            final trackers = {for (final t in v[1] as List<Tracker>) t.id: t};
+            final entries = v[2] as List<TrackerEntry>;
+            final fundValues = v[3] as Map<int, double>;
+            if (goals.isEmpty) {
+              return const EmptyHint(
+                icon: Icons.flag_rounded,
+                'Цель это измеримый результат к сроку: «Вес 73 кг», «Закрыть кредит». Она берёт значение из трекера или копилки и показывает прогноз.',
+              );
+            }
+            final today = todayKey();
+            return ListView(
+              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              children: [
+                for (final g in goals)
+                  _GoalCard(
+                    goal: g,
+                    info: goalCurrent(g, trackers: trackers, entries: entries, fundValues: fundValues),
+                    today: today,
+                  ),
+              ],
             );
-          }
-          final today = todayKey();
-          return ListView(
-            padding: const EdgeInsets.only(top: 4, bottom: 96),
-            children: [
-              for (final g in goals)
-                _GoalCard(
-                  goal: g,
-                  info: goalCurrent(g, trackers: trackers, entries: entries, fundValues: fundValues),
-                  today: today,
-                ),
-            ],
-          );
-        },
+          },
+        ),
       ),
     );
   }

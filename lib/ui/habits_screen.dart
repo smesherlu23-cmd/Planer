@@ -25,51 +25,69 @@ class HabitsScreen extends StatelessWidget {
       icon: const Icon(Icons.inventory_2_outlined),
       onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitsScreen(archived: true))),
     );
-    return Scaffold(
-      appBar: archived ? AppBar(title: const Text('Привычки в архиве')) : null,
-      floatingActionButton: archived
-          ? null
-          : FloatingActionButton(
-              heroTag: null,
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitEditScreen())),
-              child: const Icon(Icons.add_rounded),
-            ),
-      body: Watch(
-        deps: [today],
-        streams: () => [db.watchHabits(archived: archived), db.watchAllHabitLogs()],
-        builder: (context, v) {
-          final habits = v[0] as List<Habit>;
-          final logs = v[1] as List<HabitLog>;
-          final done = <int, Set<int>>{};
-          for (final l in logs) {
-            done.putIfAbsent(l.habitId, () => {}).add(l.day);
-          }
-          var planned = 0, doneWeek = 0;
-          for (final h in habits) {
-            final c = habitCompletion(daysMask: h.daysMask, doneDays: done[h.id] ?? const {}, from: monday, to: today);
-            planned += c.planned;
-            doneWeek += c.done;
-          }
-          return ListView(
-            padding: EdgeInsets.only(top: archived ? 8 : 0, bottom: 100),
-            children: [
-              if (!archived)
-                PageHeader(
-                  overline: planned == 0 ? 'эта неделя' : 'эта неделя · $doneWeek из $planned',
-                  title: 'Привычки',
-                  actions: [archiveButton],
+    return ScrollFabScope(
+      child: Scaffold(
+        appBar: archived ? AppBar(title: const Text('Привычки в архиве')) : null,
+        floatingActionButton: ScrollFab(
+          child: archived
+              ? null
+              : FloatingActionButton(
+                  heroTag: null,
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitEditScreen())),
+                  child: const Icon(Icons.add_rounded),
                 ),
-              if (habits.isEmpty)
-                EmptyHint(
-                  archived
-                      ? 'В архиве пусто.'
-                      : 'Привычка это регулярное действие с расписанием. Например, «Отбой до 23:00» каждый день или «Код» по будням.',
-                  icon: archived ? Icons.inventory_2_outlined : Icons.check_circle_outline_rounded,
-                ),
-              for (final h in habits) _HabitCard(habit: h, done: done[h.id] ?? const {}, today: today, monday: monday),
-            ],
-          );
-        },
+        ),
+        body: Watch(
+          deps: [today],
+          streams: () => [db.watchHabits(archived: archived), db.watchAllHabitLogs()],
+          builder: (context, v) {
+            final habits = v[0] as List<Habit>;
+            final logs = v[1] as List<HabitLog>;
+            final done = <int, Set<int>>{};
+            for (final l in logs) {
+              done.putIfAbsent(l.habitId, () => {}).add(l.day);
+            }
+            var planned = 0, doneWeek = 0;
+            for (final h in habits) {
+              final c = habitCompletion(daysMask: h.daysMask, doneDays: done[h.id] ?? const {}, from: monday, to: today);
+              planned += c.planned;
+              doneWeek += c.done;
+            }
+            return ListView(
+              padding: EdgeInsets.only(top: archived ? 8 : 0, bottom: 100),
+              children: [
+                if (!archived)
+                  PageHeader(
+                    overline: planned == 0 ? 'эта неделя' : 'эта неделя · $doneWeek из $planned',
+                    title: 'Привычки',
+                    actions: [archiveButton],
+                  ),
+                if (habits.isEmpty)
+                  EmptyHint(
+                    archived
+                        ? 'В архиве пусто.'
+                        : 'Привычка это регулярное действие с расписанием. Например, «Отбой до 23:00» каждый день или «Код» по будням.',
+                    icon: archived ? Icons.inventory_2_outlined : Icons.check_circle_outline_rounded,
+                    action: archived
+                        ? null
+                        : FilledButton.tonal(
+                            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const HabitEditScreen())),
+                            child: const Text('Добавить привычку'),
+                          ),
+                  ),
+                if (habits.isNotEmpty && !archived)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 4),
+                    child: Text(
+                      'Нажми на день, чтобы отметить или снять отметку',
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(color: Theme.of(context).colorScheme.onSurfaceVariant),
+                    ),
+                  ),
+                for (final h in habits) _HabitCard(habit: h, done: done[h.id] ?? const {}, today: today, monday: monday),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

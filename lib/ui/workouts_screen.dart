@@ -17,88 +17,130 @@ class WorkoutsScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final db = context.db;
     final dark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: null,
-        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProgramEditScreen())),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Программа'),
-      ),
-      body: Watch(
-        streams: () => [db.watchPrograms(), db.watchSessions()],
-        builder: (context, v) {
-          final programs = v[0] as List<Program>;
-          final sessions = v[1] as List<WorkoutSession>;
-          final today = todayKey();
-          final weekFrom = weekStart(today);
-          final weekSessions = sessions.where((s) => s.day >= weekFrom && s.day <= today).toList();
-          final doneDays = {for (final s in weekSessions) s.day};
-          final plannedDays = programs.fold<int>(0, (m, p) => m | p.daysMask);
-          final plannedThisWeek = weekdaysFromMask(plannedDays).length;
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 110),
-            children: [
-              PageHeader(overline: plannedDays == 0 ? 'спорт' : 'дни: ${maskLabel(plannedDays)}', title: 'Тренировки'),
-              HeroCard(
-                colors: dark ? const [Color(0xFFC2410C), Color(0xFFBE185D)] : const [Color(0xFFEA580C), Color(0xFFDB2777)],
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'На этой неделе',
-                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      plannedThisWeek == 0
-                          ? '${weekSessions.length} ${_trainings(weekSessions.length)}'
-                          : '${weekSessions.length} из $plannedThisWeek',
-                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white),
-                    ),
-                    const SizedBox(height: 16),
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        for (var i = 0; i < 7; i++)
-                          _WeekDot(
-                            label: weekdayShort[i],
-                            day: addDays(weekFrom, i),
-                            today: today,
-                            done: doneDays.contains(addDays(weekFrom, i)),
-                            planned: maskHasWeekday(plannedDays, i + 1),
-                          ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-              const SectionTitle('Программы'),
-              if (programs.isEmpty)
-                const Card(
-                  child: EmptyHint(
-                    'Программа это список упражнений с подходами и повторами. Например, «Тренировка A».',
-                    icon: Icons.fitness_center_rounded,
+    return ScrollFabScope(
+      child: Scaffold(
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton.extended(
+            heroTag: null,
+            onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const ProgramEditScreen())),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Программа'),
+          ),
+        ),
+        body: Watch(
+          streams: () => [db.watchPrograms(), db.watchSessions()],
+          builder: (context, v) {
+            final programs = v[0] as List<Program>;
+            final sessions = v[1] as List<WorkoutSession>;
+            final today = todayKey();
+            final weekFrom = weekStart(today);
+            final weekSessions = sessions.where((s) => s.day >= weekFrom && s.day <= today).toList();
+            final doneDays = {for (final s in weekSessions) s.day};
+            final plannedDays = programs.fold<int>(0, (m, p) => m | p.daysMask);
+            final plannedThisWeek = weekdaysFromMask(plannedDays).length;
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 110),
+              children: [
+                PageHeader(overline: plannedDays == 0 ? 'спорт' : 'дни: ${maskLabel(plannedDays)}', title: 'Тренировки'),
+                HeroCard(
+                  colors: dark ? const [Color(0xFFC2410C), Color(0xFFBE185D)] : const [Color(0xFFEA580C), Color(0xFFDB2777)],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      const Text(
+                        'На этой неделе',
+                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                      ),
+                      const SizedBox(height: 4),
+                      Text(
+                        plannedThisWeek == 0
+                            ? '${weekSessions.length} ${_trainings(weekSessions.length)}'
+                            : '${weekSessions.length} из $plannedThisWeek',
+                        style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white),
+                      ),
+                      const SizedBox(height: 16),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        children: [
+                          for (var i = 0; i < 7; i++)
+                            _WeekDot(
+                              label: weekdayShort[i],
+                              day: addDays(weekFrom, i),
+                              today: today,
+                              done: doneDays.contains(addDays(weekFrom, i)),
+                              planned: maskHasWeekday(plannedDays, i + 1),
+                            ),
+                        ],
+                      ),
+                    ],
                   ),
                 ),
-              for (final p in programs) _ProgramCard(program: p, sessions: sessions, today: today),
-              const SectionTitle('История'),
-              if (sessions.isEmpty) const Card(child: EmptyHint('Здесь будут проведённые тренировки', icon: Icons.history_rounded)),
-              if (sessions.isNotEmpty)
-                GroupCard(
-                  children: [
-                    for (final s in sessions.take(30))
-                      ListTile(
-                        leading: s.minimum
-                            ? const IconBadge(Icons.contrast_rounded, color: Accent.reminders, soft: true)
-                            : const IconBadge(Icons.check_rounded, color: Accent.habits, soft: true),
-                        title: Text(s.programName),
-                        subtitle: Text(_capitalize(dayLabel(s.day))),
-                        trailing: s.minimum ? const Pill('минимум', color: Accent.reminders) : const Icon(Icons.chevron_right_rounded),
-                        onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionViewScreen(sessionId: s.id))),
-                      ),
-                  ],
-                ),
-            ],
+                const SectionTitle('Программы'),
+                if (programs.isEmpty)
+                  const Card(
+                    child: EmptyHint(
+                      'Программа это список упражнений с подходами и повторами. Например, «Тренировка A».',
+                      icon: Icons.fitness_center_rounded,
+                    ),
+                  ),
+                for (final p in programs) _ProgramCard(program: p, sessions: sessions, today: today),
+                const SectionTitle('История'),
+                if (sessions.isEmpty) const Card(child: EmptyHint('Здесь будут проведённые тренировки', icon: Icons.history_rounded)),
+                if (sessions.isNotEmpty) _SessionList(sessions: sessions.take(5).toList()),
+                if (sessions.length > 5)
+                  Center(
+                    child: TextButton(
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const SessionHistoryScreen())),
+                      child: Text('Вся история · ${sessions.length}'),
+                    ),
+                  ),
+              ],
+            );
+          },
+        ),
+      ),
+    );
+  }
+}
+
+class _SessionList extends StatelessWidget {
+  const _SessionList({required this.sessions});
+  final List<WorkoutSession> sessions;
+
+  @override
+  Widget build(BuildContext context) {
+    return GroupCard(
+      children: [
+        for (final s in sessions)
+          ListTile(
+            leading: s.minimum
+                ? const IconBadge(Icons.contrast_rounded, color: Accent.reminders, soft: true)
+                : const IconBadge(Icons.check_rounded, color: Accent.habits, soft: true),
+            title: Text(s.programName),
+            subtitle: Text(_capitalize(dayLabel(s.day))),
+            trailing: s.minimum ? const Pill('минимум', color: Accent.reminders) : const Icon(Icons.chevron_right_rounded),
+            onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionViewScreen(sessionId: s.id))),
+          ),
+      ],
+    );
+  }
+}
+
+/// Все проведённые тренировки: на главном экране спорта только последние пять.
+class SessionHistoryScreen extends StatelessWidget {
+  const SessionHistoryScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: const Text('История тренировок')),
+      body: StreamBuilder<List<WorkoutSession>>(
+        stream: context.db.watchSessions(),
+        builder: (context, snap) {
+          if (!snap.hasData) return const Center(child: CircularProgressIndicator());
+          return ListView(
+            padding: const EdgeInsets.only(top: 8, bottom: 32),
+            children: [_SessionList(sessions: snap.data!)],
           );
         },
       ),
@@ -239,78 +281,82 @@ class ProgramDetailScreen extends StatelessWidget {
         if (p == null) return const Scaffold(body: Center(child: Text('Программа удалена')));
         final exercises = v[1] as List<ProgramExercise>;
         final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(p.name),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.edit_rounded),
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProgramEditScreen(program: p))),
-              ),
-            ],
-          ),
-          floatingActionButton: exercises.isEmpty
-              ? null
-              : FloatingActionButton.extended(
-                  heroTag: null,
-                  backgroundColor: Accent.workouts,
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: p.id))),
-                  icon: const Icon(Icons.play_arrow_rounded),
-                  label: const Text('Начать'),
+        return ScrollFabScope(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(p.name),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded),
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => ProgramEditScreen(program: p))),
                 ),
-          body: ListView(
-            padding: const EdgeInsets.only(bottom: 110),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
-                child: Wrap(
-                  spacing: 6,
-                  runSpacing: 6,
-                  children: [
-                    Pill(p.daysMask == 0 ? 'без расписания' : maskLabel(p.daysMask), color: Accent.workouts),
-                    if (p.reminderMinutes != null) Pill(formatMinutes(p.reminderMinutes!), icon: Icons.alarm_rounded),
-                    Pill('${exercises.length} упр.'),
-                  ],
-                ),
-              ),
-              if (p.note != null)
+              ],
+            ),
+            floatingActionButton: ScrollFab(
+              child: exercises.isEmpty
+                  ? null
+                  : FloatingActionButton.extended(
+                      heroTag: null,
+                      backgroundColor: Accent.workouts,
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => SessionScreen(programId: p.id))),
+                      icon: const Icon(Icons.play_arrow_rounded),
+                      label: const Text('Начать'),
+                    ),
+            ),
+            body: ListView(
+              padding: const EdgeInsets.only(bottom: 110),
+              children: [
                 Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
-                  child: Text(p.note!, style: TextStyle(color: muted, height: 1.4)),
-                ),
-              SectionTitle(
-                'Упражнения',
-                trailing: IconButton(
-                  tooltip: 'Упражнение',
-                  onPressed: () => editExercise(context, p.id, null),
-                  icon: const Icon(Icons.add_rounded),
-                ),
-              ),
-              if (exercises.isEmpty)
-                Card(
-                  child: EmptyHint(
-                    'Добавь первое упражнение',
-                    icon: Icons.fitness_center_rounded,
-                    action: FilledButton.tonal(onPressed: () => editExercise(context, p.id, null), child: const Text('Добавить')),
+                  padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+                  child: Wrap(
+                    spacing: 6,
+                    runSpacing: 6,
+                    children: [
+                      Pill(p.daysMask == 0 ? 'без расписания' : maskLabel(p.daysMask), color: Accent.workouts),
+                      if (p.reminderMinutes != null) Pill(formatMinutes(p.reminderMinutes!), icon: Icons.alarm_rounded),
+                      Pill('${exercises.length} упр.'),
+                    ],
                   ),
                 ),
-              if (exercises.isNotEmpty)
-                GroupCard(
-                  children: [
-                    for (final (i, e) in exercises.indexed)
-                      ListTile(
-                        leading: SizedBox(
-                          width: 40,
-                          child: Center(child: NumberBadge(i + 1, color: Accent.workouts)),
-                        ),
-                        title: Text(e.name),
-                        subtitle: Text([planLabel(e), if (e.note != null) e.note!].join('\n')),
-                        isThreeLine: e.note != null,
-                        onTap: () => editExercise(context, p.id, e),
-                      ),
-                  ],
+                if (p.note != null)
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 12, 20, 0),
+                    child: Text(p.note!, style: TextStyle(color: muted, height: 1.4)),
+                  ),
+                SectionTitle(
+                  'Упражнения',
+                  trailing: IconButton(
+                    tooltip: 'Упражнение',
+                    onPressed: () => editExercise(context, p.id, null),
+                    icon: const Icon(Icons.add_rounded),
+                  ),
                 ),
-            ],
+                if (exercises.isEmpty)
+                  Card(
+                    child: EmptyHint(
+                      'Добавь первое упражнение',
+                      icon: Icons.fitness_center_rounded,
+                      action: FilledButton.tonal(onPressed: () => editExercise(context, p.id, null), child: const Text('Добавить')),
+                    ),
+                  ),
+                if (exercises.isNotEmpty)
+                  GroupCard(
+                    children: [
+                      for (final (i, e) in exercises.indexed)
+                        ListTile(
+                          leading: SizedBox(
+                            width: 40,
+                            child: Center(child: NumberBadge(i + 1, color: Accent.workouts)),
+                          ),
+                          title: Text(e.name),
+                          subtitle: Text([planLabel(e), if (e.note != null) e.note!].join('\n')),
+                          isThreeLine: e.note != null,
+                          onTap: () => editExercise(context, p.id, e),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         );
       },

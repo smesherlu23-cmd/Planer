@@ -46,60 +46,65 @@ class _DayPlanScreenState extends State<DayPlanScreen> {
         final sleepGoals = SleepGoals.from(v[1] as Map<String, String>);
         final blocks = blocksForWeekday(all, _weekday, sleep: sleepGoals.onToday ? sleepGoals : null);
         final isToday = _weekday == DateTime.now().weekday;
-        return Scaffold(
-          appBar: AppBar(title: const Text('План дня')),
-          floatingActionButton: FloatingActionButton.extended(
-            heroTag: null,
-            onPressed: () => showBlockSheet(context, weekday: _weekday, after: blocks.where((b) => b.kind != BlockKind.sleep).lastOrNull),
-            icon: const Icon(Icons.add_rounded),
-            label: const Text('Блок'),
-          ),
-          body: ListView(
-            padding: const EdgeInsets.only(bottom: 110),
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
-                child: Row(
-                  children: [
-                    for (var w = 1; w <= 7; w++)
-                      Expanded(
-                        child: Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 2),
-                          child: _DayChip(
-                            label: weekdayShort[w - 1],
-                            selected: w == _weekday,
-                            today: w == DateTime.now().weekday,
-                            onTap: () => setState(() => _weekday = w),
+        return ScrollFabScope(
+          child: Scaffold(
+            appBar: AppBar(title: const Text('План дня')),
+            floatingActionButton: ScrollFab(
+              child: FloatingActionButton.extended(
+                heroTag: null,
+                onPressed: () =>
+                    showBlockSheet(context, weekday: _weekday, after: blocks.where((b) => b.kind != BlockKind.sleep).lastOrNull),
+                icon: const Icon(Icons.add_rounded),
+                label: const Text('Блок'),
+              ),
+            ),
+            body: ListView(
+              padding: const EdgeInsets.only(bottom: 110),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 0, 16, 4),
+                  child: Row(
+                    children: [
+                      for (var w = 1; w <= 7; w++)
+                        Expanded(
+                          child: Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 2),
+                            child: _DayChip(
+                              label: weekdayShort[w - 1],
+                              selected: w == _weekday,
+                              today: w == DateTime.now().weekday,
+                              onTap: () => setState(() => _weekday = w),
+                            ),
                           ),
                         ),
-                      ),
-                  ],
-                ),
-              ),
-              _SplitCard(blocks: blocks, isToday: isToday),
-              if (blocks.isEmpty)
-                const Card(
-                  child: EmptyHint(
-                    'Разложи день на блоки: работа, код, спорт, отдых. Здесь будет видно, куда уходят сутки и что сейчас по плану.',
-                    icon: Icons.view_timeline_outlined,
+                    ],
                   ),
                 ),
-              if (blocks.isNotEmpty) ...[
-                SectionTitle(isToday ? 'Сегодня по плану' : 'По плану'),
-                GroupCard(
-                  children: [
-                    for (final (i, b) in blocks.indexed) ...[
-                      _BlockTile(block: b, now: isToday && b.contains(_nowMinute())),
-                      if (gapAfter(blocks, i) case final gap when gap >= 10) _GapTile(start: b.end, minutes: gap),
+                _SplitCard(blocks: blocks, isToday: isToday),
+                if (blocks.isEmpty)
+                  const Card(
+                    child: EmptyHint(
+                      'Разложи день на блоки: работа, код, спорт, отдых. Здесь будет видно, куда уходят сутки и что сейчас по плану.',
+                      icon: Icons.view_timeline_outlined,
+                    ),
+                  ),
+                if (blocks.isNotEmpty) ...[
+                  SectionTitle(isToday ? 'Сегодня по плану' : 'По плану'),
+                  GroupCard(
+                    children: [
+                      for (final (i, b) in blocks.indexed) ...[
+                        _BlockTile(block: b, now: isToday && b.contains(_nowMinute())),
+                        if (gapAfter(blocks, i) case final gap when gap >= 10) _GapTile(start: b.end, minutes: gap),
+                      ],
                     ],
-                  ],
-                ),
-                const Padding(
-                  padding: EdgeInsets.fromLTRB(24, 10, 24, 0),
-                  child: Text('Нажми на блок, чтобы изменить время или дни. Сон берётся из раздела «Сон».'),
-                ),
+                  ),
+                  const Padding(
+                    padding: EdgeInsets.fromLTRB(24, 10, 24, 0),
+                    child: Text('Нажми на блок, чтобы изменить время или дни. Сон берётся из раздела «Сон».'),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         );
       },

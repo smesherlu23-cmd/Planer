@@ -136,6 +136,15 @@ void main() {
     expect(find.text('Сегодня'), findsWidgets);
     await shot(tester, '01_today');
 
+    // Быстрая запись с «Сегодня».
+    await tester.tap(find.byType(FloatingActionButton).hitTestable());
+    await pumpData(tester);
+    expect(find.text('Записать за сегодня'), findsOneWidget);
+    expect(find.text('Стакан воды'), findsOneWidget);
+    await shot(tester, '01c_quick_add');
+    await back(tester);
+    await pumpData(tester);
+
     Future<void> tab(String label, String name) async {
       await tester.tap(find.descendant(of: find.byType(NavigationBar), matching: find.text(label)));
       await pumpData(tester);

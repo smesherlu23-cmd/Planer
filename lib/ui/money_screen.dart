@@ -36,192 +36,199 @@ class _MoneyScreenState extends State<MoneyScreen> {
     final db = context.db;
     final theme = Theme.of(context);
     final dark = theme.brightness == Brightness.dark;
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: null,
-        onPressed: () => showTransactionSheet(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Операция'),
-      ),
-      body: Watch(
-        deps: [_from],
-        streams: () => [
-          db.watchTransactions(from: _from, to: _to),
-          db.watchCategories(),
-          db.watchFunds(),
-          db.watchFundValues(),
-          db.watchAllFundMoves(),
-          (db.select(db.categories)).watch(),
-          db.watchBudget(monthKey(_month)),
-        ],
-        builder: (context, v) {
-          final txs = v[0] as List<Transaction>;
-          final cats = v[1] as List<Category>;
-          final funds = v[2] as List<Fund>;
-          final values = v[3] as Map<int, double>;
-          final moves = v[4] as List<FundMove>;
-          final allCats = {for (final c in v[5] as List<Category>) c.id: c};
-          final budget = buildBudget(
-            lines: v[6] as List<BudgetLine>,
-            categories: allCats.values.toList(),
-            funds: funds,
-            transactions: txs,
-            moves: [
-              for (final m in moves)
-                if (m.day >= _from && m.day <= _to) m,
-            ],
-          );
-          final daysLeft = daysLeftInMonth(_month, DateTime.now());
-          final expenses = txs.where((t) => !t.isIncome).fold<double>(0, (a, t) => a + t.amount);
-          final income = txs.where((t) => t.isIncome).fold<double>(0, (a, t) => a + t.amount);
-          final byCat = <int?, double>{};
-          for (final t in txs.where((t) => !t.isIncome)) {
-            byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
-          }
-          final catRows = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
-          final limited = cats.where((c) => c.monthlyLimit != null && !c.isIncome && !byCat.containsKey(c.id)).toList();
-          final byDay = <int, List<Transaction>>{};
-          for (final t in txs) {
-            byDay.putIfAbsent(t.day, () => []).add(t);
-          }
-          final diff = income - expenses;
+    return ScrollFabScope(
+      child: Scaffold(
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton.extended(
+            heroTag: null,
+            onPressed: () => showTransactionSheet(context),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Операция'),
+          ),
+        ),
+        body: Watch(
+          deps: [_from],
+          streams: () => [
+            db.watchTransactions(from: _from, to: _to),
+            db.watchCategories(),
+            db.watchFunds(),
+            db.watchFundValues(),
+            db.watchAllFundMoves(),
+            (db.select(db.categories)).watch(),
+            db.watchBudget(monthKey(_month)),
+          ],
+          builder: (context, v) {
+            final txs = v[0] as List<Transaction>;
+            final cats = v[1] as List<Category>;
+            final funds = v[2] as List<Fund>;
+            final values = v[3] as Map<int, double>;
+            final moves = v[4] as List<FundMove>;
+            final allCats = {for (final c in v[5] as List<Category>) c.id: c};
+            final budget = buildBudget(
+              lines: v[6] as List<BudgetLine>,
+              categories: allCats.values.toList(),
+              funds: funds,
+              transactions: txs,
+              moves: [
+                for (final m in moves)
+                  if (m.day >= _from && m.day <= _to) m,
+              ],
+            );
+            final daysLeft = daysLeftInMonth(_month, DateTime.now());
+            final expenses = txs.where((t) => !t.isIncome).fold<double>(0, (a, t) => a + t.amount);
+            final income = txs.where((t) => t.isIncome).fold<double>(0, (a, t) => a + t.amount);
+            final byCat = <int?, double>{};
+            for (final t in txs.where((t) => !t.isIncome)) {
+              byCat[t.categoryId] = (byCat[t.categoryId] ?? 0) + t.amount;
+            }
+            final catRows = byCat.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
+            final limited = cats.where((c) => c.monthlyLimit != null && !c.isIncome && !byCat.containsKey(c.id)).toList();
+            final byDay = <int, List<Transaction>>{};
+            for (final t in txs) {
+              byDay.putIfAbsent(t.day, () => []).add(t);
+            }
+            final diff = income - expenses;
 
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 110),
-            children: [
-              PageHeader(
-                overline: 'бюджет на месяц',
-                title: 'Деньги',
-                actions: [
-                  IconButton(
-                    tooltip: 'Категории',
-                    icon: const Icon(Icons.category_rounded),
-                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen())),
-                  ),
-                ],
-              ),
-              HeroCard(
-                colors: dark ? const [Color(0xFFB45309), Color(0xFFC2410C)] : const [Color(0xFFD97706), Color(0xFFEA580C)],
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        HeroArrow(Icons.chevron_left_rounded, onTap: () => _shift(-1)),
-                        Expanded(
-                          child: Text(
-                            monthTitle(_month.year, _month.month),
-                            textAlign: TextAlign.center,
-                            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
-                          ),
-                        ),
-                        HeroArrow(Icons.chevron_right_rounded, onTap: () => _shift(1)),
-                      ],
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 110),
+              children: [
+                PageHeader(
+                  overline: 'бюджет на месяц',
+                  title: 'Деньги',
+                  actions: [
+                    IconButton(
+                      tooltip: 'Категории',
+                      icon: const Icon(Icons.category_rounded),
+                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const CategoriesScreen())),
                     ),
-                    const SizedBox(height: 10),
-                    if (budget.planned && budget.expensePlan > 0) ...[
-                      Text(
-                        budget.leftToSpend >= 0 ? 'Можно ещё потратить' : 'Перерасход',
-                        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
-                      ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(
-                          formatMoney(budget.leftToSpend.abs()),
-                          style: theme.textTheme.displaySmall?.copyWith(color: Colors.white),
-                        ),
-                      ),
-                      if (budget.leftToSpend > 0 && daysLeft > 0)
-                        Text(
-                          'это ${formatMoney(budget.leftToSpend / daysLeft)} в день до конца месяца',
-                          style: const TextStyle(color: Colors.white),
-                        ),
-                    ] else ...[
-                      const Text(
-                        'Потрачено',
-                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
-                      ),
-                      FittedBox(
-                        fit: BoxFit.scaleDown,
-                        alignment: Alignment.centerLeft,
-                        child: Text(formatMoney(expenses), style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
-                      ),
-                    ],
-                    const SizedBox(height: 14),
-                    if (budget.planned)
-                      Row(
-                        children: [
-                          Expanded(
-                            child: HeroStat(label: 'Доход', value: '${formatMoney(income)} из ${formatMoney(budget.incomePlan)}'),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: HeroStat(label: 'Отложено', value: '${formatMoney(budget.saveFact)} из ${formatMoney(budget.savePlan)}'),
-                          ),
-                        ],
-                      )
-                    else
-                      Row(
-                        children: [
-                          Expanded(
-                            child: HeroStat(label: 'Доходы', value: '+${formatMoney(income)}'),
-                          ),
-                          const SizedBox(width: 10),
-                          Expanded(
-                            child: HeroStat(label: 'Разница', value: '${diff < 0 ? '−' : '+'}${formatMoney(diff.abs())}'),
-                          ),
-                        ],
-                      ),
                   ],
                 ),
-              ),
-              if (budget.planned) BudgetSections(budget: budget, month: _month) else NoBudgetCard(month: _month),
-              SectionTitle(
-                'Копилки и долги',
-                trailing: IconButton(
-                  tooltip: 'Копилка или долг',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
-                ),
-              ),
-              if (funds.isEmpty)
-                Card(
-                  child: EmptyHint(
-                    'Копилка показывает, сколько накоплено и когда дойдёшь до цели. Долг показывает остаток и срок закрытия.',
-                    icon: Icons.savings_outlined,
-                    action: FilledButton.tonal(
-                      onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
-                      child: const Text('Добавить'),
-                    ),
-                  ),
-                ),
-              for (final f in funds) _FundCard(fund: f, value: values[f.id] ?? fundValue(f, 0), recent: recentMonthlyPace(moves, f.id)),
-              if (!budget.planned && (catRows.isNotEmpty || limited.isNotEmpty)) ...[
-                const SectionTitle('По категориям'),
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 6),
-                    child: Column(
-                      children: [
-                        for (final e in catRows) _CategoryRow(category: allCats[e.key], spent: e.value, total: expenses),
-                        for (final c in limited) _CategoryRow(category: c, spent: 0, total: expenses),
+                HeroCard(
+                  colors: dark ? const [Color(0xFFB45309), Color(0xFFC2410C)] : const [Color(0xFFD97706), Color(0xFFEA580C)],
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          HeroArrow(Icons.chevron_left_rounded, onTap: () => _shift(-1)),
+                          Expanded(
+                            child: Text(
+                              monthTitle(_month.year, _month.month),
+                              textAlign: TextAlign.center,
+                              style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                            ),
+                          ),
+                          HeroArrow(Icons.chevron_right_rounded, onTap: () => _shift(1)),
+                        ],
+                      ),
+                      const SizedBox(height: 10),
+                      if (budget.planned && budget.expensePlan > 0) ...[
+                        Text(
+                          budget.leftToSpend >= 0 ? 'Можно ещё потратить' : 'Перерасход',
+                          style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            formatMoney(budget.leftToSpend.abs()),
+                            style: theme.textTheme.displaySmall?.copyWith(color: Colors.white),
+                          ),
+                        ),
+                        if (budget.leftToSpend > 0 && daysLeft > 0)
+                          Text(
+                            'это ${formatMoney(budget.leftToSpend / daysLeft)} в день до конца месяца',
+                            style: const TextStyle(color: Colors.white),
+                          ),
+                      ] else ...[
+                        const Text(
+                          'Потрачено',
+                          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                        ),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(formatMoney(expenses), style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
+                        ),
                       ],
-                    ),
+                      const SizedBox(height: 14),
+                      if (budget.planned)
+                        Row(
+                          children: [
+                            Expanded(
+                              child: HeroStat(label: 'Доход', value: '${formatMoney(income)} из ${formatMoney(budget.incomePlan)}'),
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: HeroStat(
+                                label: 'Отложено',
+                                value: '${formatMoney(budget.saveFact)} из ${formatMoney(budget.savePlan)}',
+                              ),
+                            ),
+                          ],
+                        )
+                      else
+                        Row(
+                          children: [
+                            Expanded(
+                              child: HeroStat(label: 'Доходы', value: '+${formatMoney(income)}'),
+                            ),
+                            const SizedBox(width: 10),
+                            Expanded(
+                              child: HeroStat(label: 'Разница', value: '${diff < 0 ? '−' : '+'}${formatMoney(diff.abs())}'),
+                            ),
+                          ],
+                        ),
+                    ],
                   ),
                 ),
-              ],
-              const SectionTitle('Операции'),
-              if (txs.isEmpty) const Card(child: EmptyHint('За этот месяц операций нет', icon: Icons.receipt_long_outlined)),
-              for (final MapEntry(key: day, value: list) in byDay.entries) ...[
-                _DayHeader(day: day, txs: list),
-                GroupCard(
-                  children: [for (final t in list) _TransactionTile(t: t, category: allCats[t.categoryId])],
+                if (budget.planned) BudgetSections(budget: budget, month: _month) else NoBudgetCard(month: _month),
+                SectionTitle(
+                  'Копилки и долги',
+                  trailing: IconButton(
+                    tooltip: 'Копилка или долг',
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
+                  ),
                 ),
+                if (funds.isEmpty)
+                  Card(
+                    child: EmptyHint(
+                      'Копилка показывает, сколько накоплено и когда дойдёшь до цели. Долг показывает остаток и срок закрытия.',
+                      icon: Icons.savings_outlined,
+                      action: FilledButton.tonal(
+                        onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const FundEditScreen())),
+                        child: const Text('Добавить'),
+                      ),
+                    ),
+                  ),
+                for (final f in funds) _FundCard(fund: f, value: values[f.id] ?? fundValue(f, 0), recent: recentMonthlyPace(moves, f.id)),
+                if (!budget.planned && (catRows.isNotEmpty || limited.isNotEmpty)) ...[
+                  const SectionTitle('По категориям'),
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 6),
+                      child: Column(
+                        children: [
+                          for (final e in catRows) _CategoryRow(category: allCats[e.key], spent: e.value, total: expenses),
+                          for (final c in limited) _CategoryRow(category: c, spent: 0, total: expenses),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+                const SectionTitle('Операции'),
+                if (txs.isEmpty) const Card(child: EmptyHint('За этот месяц операций нет', icon: Icons.receipt_long_outlined)),
+                for (final MapEntry(key: day, value: list) in byDay.entries) ...[
+                  _DayHeader(day: day, txs: list),
+                  GroupCard(
+                    children: [for (final t in list) _TransactionTile(t: t, category: allCats[t.categoryId])],
+                  ),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }
@@ -848,27 +855,27 @@ class CategoriesScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Категории')),
-      floatingActionButton: FloatingActionButton(
-        heroTag: null,
-        onPressed: () => _edit(context, null),
-        child: const Icon(Icons.add_rounded),
-      ),
-      body: StreamBuilder<List<Category>>(
-        stream: db.watchCategories(),
-        builder: (context, snap) {
-          final cats = snap.data ?? const <Category>[];
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 88),
-            children: [
-              const SectionTitle('Расходы'),
-              GroupCard(children: [for (final c in cats.where((c) => !c.isIncome)) _tile(context, c)]),
-              const SectionTitle('Доходы'),
-              GroupCard(children: [for (final c in cats.where((c) => c.isIncome)) _tile(context, c)]),
-            ],
-          );
-        },
+    return ScrollFabScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Категории')),
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton(heroTag: null, onPressed: () => _edit(context, null), child: const Icon(Icons.add_rounded)),
+        ),
+        body: StreamBuilder<List<Category>>(
+          stream: db.watchCategories(),
+          builder: (context, snap) {
+            final cats = snap.data ?? const <Category>[];
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 88),
+              children: [
+                const SectionTitle('Расходы'),
+                GroupCard(children: [for (final c in cats.where((c) => !c.isIncome)) _tile(context, c)]),
+                const SectionTitle('Доходы'),
+                GroupCard(children: [for (final c in cats.where((c) => c.isIncome)) _tile(context, c)]),
+              ],
+            );
+          },
+        ),
       ),
     );
   }

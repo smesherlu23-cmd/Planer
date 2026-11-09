@@ -13,59 +13,59 @@ class RemindersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    return Scaffold(
-      appBar: AppBar(title: const Text('Напоминания')),
-      floatingActionButton: FloatingActionButton(
-        heroTag: null,
-        onPressed: () => editReminder(context, null),
-        child: const Icon(Icons.add_rounded),
-      ),
-      body: Watch(
-        streams: () => [db.watchReminders(), db.watchHabits(), db.watchTrackers(), db.watchPrograms()],
-        builder: (context, v) {
-          final reminders = v[0] as List<Reminder>;
-          final habits = (v[1] as List<Habit>).where((h) => h.reminderMinutes != null).toList();
-          final trackers = (v[2] as List<Tracker>).where((t) => t.reminderMinutes != null && t.daysMask != 0).toList();
-          final programs = (v[3] as List<Program>).where((p) => p.reminderMinutes != null && p.daysMask != 0).toList();
-          final muted = Theme.of(context).colorScheme.onSurfaceVariant;
-          Widget linked(String icon, String fallback, String name, int minutes, int mask) => ListTile(
-            leading: ItemIcon(icon, size: 40, fallback: fallback),
-            title: Text(name),
-            subtitle: Text(maskLabel(mask)),
-            trailing: Text(
-              formatMinutes(minutes),
-              style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, fontFeatures: [FontFeature.tabularFigures()]),
-            ),
-          );
-          return ListView(
-            padding: const EdgeInsets.only(bottom: 96),
-            children: [
-              const SectionTitle('Свои напоминания'),
-              if (reminders.isEmpty)
-                const Card(
-                  child: EmptyHint(
-                    'Например, «Итог дня» в 22:30 или «Обзор недели» в воскресенье.',
-                    icon: Icons.notifications_none_rounded,
+    return ScrollFabScope(
+      child: Scaffold(
+        appBar: AppBar(title: const Text('Напоминания')),
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton(heroTag: null, onPressed: () => editReminder(context, null), child: const Icon(Icons.add_rounded)),
+        ),
+        body: Watch(
+          streams: () => [db.watchReminders(), db.watchHabits(), db.watchTrackers(), db.watchPrograms()],
+          builder: (context, v) {
+            final reminders = v[0] as List<Reminder>;
+            final habits = (v[1] as List<Habit>).where((h) => h.reminderMinutes != null).toList();
+            final trackers = (v[2] as List<Tracker>).where((t) => t.reminderMinutes != null && t.daysMask != 0).toList();
+            final programs = (v[3] as List<Program>).where((p) => p.reminderMinutes != null && p.daysMask != 0).toList();
+            final muted = Theme.of(context).colorScheme.onSurfaceVariant;
+            Widget linked(String icon, String fallback, String name, int minutes, int mask) => ListTile(
+              leading: ItemIcon(icon, size: 40, fallback: fallback),
+              title: Text(name),
+              subtitle: Text(maskLabel(mask)),
+              trailing: Text(
+                formatMinutes(minutes),
+                style: const TextStyle(fontWeight: FontWeight.w700, fontSize: 16, fontFeatures: [FontFeature.tabularFigures()]),
+              ),
+            );
+            return ListView(
+              padding: const EdgeInsets.only(bottom: 96),
+              children: [
+                const SectionTitle('Свои напоминания'),
+                if (reminders.isEmpty)
+                  const Card(
+                    child: EmptyHint(
+                      'Например, «Итог дня» в 22:30 или «Обзор недели» в воскресенье.',
+                      icon: Icons.notifications_none_rounded,
+                    ),
                   ),
-                ),
-              for (final r in reminders) _ReminderCard(reminder: r),
-              if (habits.isNotEmpty || trackers.isNotEmpty || programs.isNotEmpty) ...[
-                const SectionTitle('Из привычек, трекеров и тренировок'),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
-                  child: Text('Меняются в настройках самой привычки, трекера или программы.', style: TextStyle(color: muted)),
-                ),
-                GroupCard(
-                  children: [
-                    for (final h in habits) linked(h.icon, 'check', h.name, h.reminderMinutes!, h.daysMask),
-                    for (final t in trackers) linked(t.icon, 'chart', t.name, t.reminderMinutes!, t.daysMask),
-                    for (final p in programs) linked('fitness', 'fitness', p.name, p.reminderMinutes!, p.daysMask),
-                  ],
-                ),
+                for (final r in reminders) _ReminderCard(reminder: r),
+                if (habits.isNotEmpty || trackers.isNotEmpty || programs.isNotEmpty) ...[
+                  const SectionTitle('Из привычек, трекеров и тренировок'),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(20, 0, 20, 8),
+                    child: Text('Меняются в настройках самой привычки, трекера или программы.', style: TextStyle(color: muted)),
+                  ),
+                  GroupCard(
+                    children: [
+                      for (final h in habits) linked(h.icon, 'check', h.name, h.reminderMinutes!, h.daysMask),
+                      for (final t in trackers) linked(t.icon, 'chart', t.name, t.reminderMinutes!, t.daysMask),
+                      for (final p in programs) linked('fitness', 'fitness', p.name, p.reminderMinutes!, p.daysMask),
+                    ],
+                  ),
+                ],
               ],
-            ],
-          );
-        },
+            );
+          },
+        ),
       ),
     );
   }

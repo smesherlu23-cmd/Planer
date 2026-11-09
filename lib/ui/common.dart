@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show ScrollDirection;
 import 'package:flutter/services.dart';
 
 import '../data/database.dart';
@@ -713,4 +714,72 @@ Future<T?> showFormSheet<T>(BuildContext context, Widget Function(BuildContext) 
       child: SingleChildScrollView(padding: const EdgeInsets.fromLTRB(20, 8, 20, 20), child: builder(context)),
     ),
   );
+}
+
+// ---------------------------------------------------------------------------
+// Кнопка действия, которая не закрывает карточки
+// ---------------------------------------------------------------------------
+
+/// Следит за прокруткой экрана и подсказывает [ScrollFab], когда спрятаться.
+/// Оборачивает Scaffold целиком, чтобы видеть прокрутку тела.
+class ScrollFabScope extends StatefulWidget {
+  const ScrollFabScope({super.key, required this.child});
+  final Widget child;
+
+  @override
+  State<ScrollFabScope> createState() => _ScrollFabScopeState();
+}
+
+class _ScrollFabScopeState extends State<ScrollFabScope> {
+  final _visible = ValueNotifier(true);
+
+  @override
+  void dispose() {
+    _visible.dispose();
+    super.dispose();
+  }
+
+  bool _onScroll(ScrollNotification n) {
+    if (n.metrics.axis != Axis.vertical) return false;
+    if (n is UserScrollNotification) {
+      if (n.direction == ScrollDirection.reverse) _visible.value = false;
+      if (n.direction == ScrollDirection.forward) _visible.value = true;
+    }
+    // В самом конце списка кнопка ничего не закрывает: под ней пустой отступ.
+    if (n is ScrollUpdateNotification && n.metrics.extentAfter < 24) _visible.value = true;
+    return false;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return _FabVisibility(
+      notifier: _visible,
+      child: NotificationListener<ScrollNotification>(onNotification: _onScroll, child: widget.child),
+    );
+  }
+}
+
+class _FabVisibility extends InheritedNotifier<ValueNotifier<bool>> {
+  const _FabVisibility({required super.notifier, required super.child});
+}
+
+/// Кнопка действия экрана: уезжает вниз, когда листаешь вниз, и возвращается, когда листаешь вверх.
+class ScrollFab extends StatelessWidget {
+  const ScrollFab({super.key, required this.child});
+  final Widget? child;
+
+  @override
+  Widget build(BuildContext context) {
+    if (child == null) return const SizedBox.shrink();
+    final visible = context.dependOnInheritedWidgetOfExactType<_FabVisibility>()?.notifier?.value ?? true;
+    return IgnorePointer(
+      ignoring: !visible,
+      child: AnimatedSlide(
+        offset: visible ? Offset.zero : const Offset(0, 2),
+        duration: const Duration(milliseconds: 220),
+        curve: Curves.easeOutCubic,
+        child: AnimatedOpacity(opacity: visible ? 1 : 0, duration: const Duration(milliseconds: 180), child: child),
+      ),
+    );
+  }
 }

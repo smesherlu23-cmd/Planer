@@ -74,107 +74,111 @@ class _FoodScreenState extends State<FoodScreen> {
         final advice = weight == null ? null : weightAdvice(dailySeries(weight, entries), goals.mode, today: today);
         final week = [for (var i = 6; i >= 0; i--) dayFood(addDays(_day, -i), meals, water)];
         final logged = week.where((d) => d.kcal > 0).toList();
-        return Scaffold(
-          appBar: AppBar(
-            title: const Text('Питание'),
-            actions: [
-              IconButton(
-                tooltip: 'Цели',
-                icon: const Icon(Icons.tune_rounded),
-                onPressed: () => showFoodGoalsSheet(context, goals: goals, trackers: trackers),
-              ),
-            ],
-          ),
-          floatingActionButton: FloatingActionButton.extended(
-            heroTag: null,
-            backgroundColor: Accent.food,
-            foregroundColor: Colors.white,
-            onPressed: () => showMealSheet(context, day: _day),
-            icon: const Icon(Icons.edit_rounded),
-            label: const Text('Вручную'),
-          ),
-          body: ListView(
-            padding: const EdgeInsets.only(bottom: 110),
-            children: [
-              _FoodHero(day: _day, today: today, totals: totals, goals: goals, onShift: (d) => setState(() => _day = addDays(_day, d))),
-              if (advice != null) _AdviceCard(text: advice.text, adjust: advice.adjust),
-              SectionTitle(
-                'Быстро добавить',
-                trailing: IconButton(
-                  tooltip: 'Новое блюдо',
-                  icon: const Icon(Icons.add_rounded),
-                  onPressed: () => showFoodEditSheet(context),
+        return ScrollFabScope(
+          child: Scaffold(
+            appBar: AppBar(
+              title: const Text('Питание'),
+              actions: [
+                IconButton(
+                  tooltip: 'Цели',
+                  icon: const Icon(Icons.tune_rounded),
+                  onPressed: () => showFoodGoalsSheet(context, goals: goals, trackers: trackers),
                 ),
+              ],
+            ),
+            floatingActionButton: ScrollFab(
+              child: FloatingActionButton.extended(
+                heroTag: null,
+                backgroundColor: Accent.food,
+                foregroundColor: Colors.white,
+                onPressed: () => showMealSheet(context, day: _day),
+                icon: const Icon(Icons.edit_rounded),
+                label: const Text('Вручную'),
               ),
-              if (foods.isEmpty)
-                Card(
-                  child: EmptyHint(
-                    'Добавь то, что ешь часто: завтрак, обед, перекус. Потом записывать еду можно одним нажатием.',
-                    icon: Icons.restaurant_rounded,
-                    action: FilledButton.tonal(onPressed: () => showFoodEditSheet(context), child: const Text('Добавить блюдо')),
+            ),
+            body: ListView(
+              padding: const EdgeInsets.only(bottom: 110),
+              children: [
+                _FoodHero(day: _day, today: today, totals: totals, goals: goals, onShift: (d) => setState(() => _day = addDays(_day, d))),
+                if (advice != null) _AdviceCard(text: advice.text, adjust: advice.adjust),
+                SectionTitle(
+                  'Быстро добавить',
+                  trailing: IconButton(
+                    tooltip: 'Новое блюдо',
+                    icon: const Icon(Icons.add_rounded),
+                    onPressed: () => showFoodEditSheet(context),
                   ),
-                )
-              else
-                _FoodGrid(
-                  foods: foods,
-                  onTap: (f) => eatFood(context, f, day: _day),
                 ),
-              _WaterCard(day: _day, ml: totals.water, goals: goals),
-              SectionTitle('Съедено', trailing: dayMeals.isEmpty ? null : Pill(_kcal(totals.kcal), color: Accent.food)),
-              if (dayMeals.isEmpty)
-                const Card(child: EmptyHint('Пока ничего. Нажми на блюдо выше, и оно запишется.', icon: Icons.no_food_rounded)),
-              if (dayMeals.isNotEmpty)
-                GroupCard(
-                  children: [
-                    for (final m in dayMeals)
-                      ListTile(
-                        leading: ItemIcon(m.icon, size: 40, fallback: 'restaurant'),
-                        title: Text(m.name, maxLines: 2, overflow: TextOverflow.ellipsis),
-                        subtitle: Text('${formatMinutes(m.at.hour * 60 + m.at.minute)} · белок ${_grams(m.protein)}'),
-                        trailing: Text(_kcal(m.kcal), style: const TextStyle(fontWeight: FontWeight.w700)),
-                        onTap: () => showMealSheet(context, day: _day, existing: m),
-                      ),
-                  ],
-                ),
-              const SectionTitle('Неделя'),
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                if (foods.isEmpty)
+                  Card(
+                    child: EmptyHint(
+                      'Добавь то, что ешь часто: завтрак, обед, перекус. Потом записывать еду можно одним нажатием.',
+                      icon: Icons.restaurant_rounded,
+                      action: FilledButton.tonal(onPressed: () => showFoodEditSheet(context), child: const Text('Добавить блюдо')),
+                    ),
+                  )
+                else
+                  _FoodGrid(
+                    foods: foods,
+                    onTap: (f) => eatFood(context, f, day: _day),
+                  ),
+                _WaterCard(day: _day, ml: totals.water, goals: goals),
+                SectionTitle('Съедено', trailing: dayMeals.isEmpty ? null : Pill(_kcal(totals.kcal), color: Accent.food)),
+                if (dayMeals.isEmpty)
+                  const Card(child: EmptyHint('Пока ничего. Нажми на блюдо выше, и оно запишется.', icon: Icons.no_food_rounded)),
+                if (dayMeals.isNotEmpty)
+                  GroupCard(
                     children: [
-                      BarChart(
-                        bars: [
-                          for (var i = 0; i < 7; i++)
-                            (
-                              weekdayShort[dayFromKey(addDays(_day, i - 6)).weekday - 1].substring(0, 1),
-                              week[i].kcal == 0 ? null : week[i].kcal,
-                            ),
-                        ],
-                        target: goals.kcal,
-                        minimum: goals.mode == FoodMode.lose ? null : goals.kcalMin,
-                        color: Accent.food.withValues(alpha: 0.3),
-                        minColor: Accent.food.withValues(alpha: 0.6),
-                        goodColor: Accent.food,
-                      ),
-                      const SizedBox(height: 10),
-                      Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 4),
-                        child: Text(
-                          logged.isEmpty
-                              ? 'Цель: ${_kcal(goals.kcal)} и ${_grams(goals.protein)} белка в день'
-                              : 'Норма в ${logged.where((d) => foodLevel(d, goals) == Level.full).length} из ${logged.length} дней'
-                                    '${goals.kcalMin != null || goals.proteinMin != null ? ', минимум в ${logged.where((d) => foodLevel(d, goals) == Level.minimum).length}' : ''} · '
-                                    'в среднем ${_kcal(logged.fold<double>(0, (a, d) => a + d.kcal) / logged.length)} '
-                                    'и ${_grams(logged.fold<double>(0, (a, d) => a + d.protein) / logged.length)} белка',
-                          style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35),
+                      for (final m in dayMeals)
+                        ListTile(
+                          leading: ItemIcon(m.icon, size: 40, fallback: 'restaurant'),
+                          title: Text(m.name, maxLines: 2, overflow: TextOverflow.ellipsis),
+                          subtitle: Text('${formatMinutes(m.at.hour * 60 + m.at.minute)} · белок ${_grams(m.protein)}'),
+                          trailing: Text(_kcal(m.kcal), style: const TextStyle(fontWeight: FontWeight.w700)),
+                          onTap: () => showMealSheet(context, day: _day, existing: m),
                         ),
-                      ),
                     ],
                   ),
+                const SectionTitle('Неделя'),
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(12, 16, 12, 12),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        BarChart(
+                          bars: [
+                            for (var i = 0; i < 7; i++)
+                              (
+                                weekdayShort[dayFromKey(addDays(_day, i - 6)).weekday - 1].substring(0, 1),
+                                week[i].kcal == 0 ? null : week[i].kcal,
+                              ),
+                          ],
+                          target: goals.kcal,
+                          minimum: goals.mode == FoodMode.lose ? null : goals.kcalMin,
+                          color: Accent.food.withValues(alpha: 0.3),
+                          minColor: Accent.food.withValues(alpha: 0.6),
+                          goodColor: Accent.food,
+                        ),
+                        const SizedBox(height: 10),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 4),
+                          child: Text(
+                            logged.isEmpty
+                                ? 'Цель: ${_kcal(goals.kcal)} и ${_grams(goals.protein)} белка в день'
+                                : 'Норма в ${logged.where((d) => foodLevel(d, goals) == Level.full).length} из ${logged.length} дней'
+                                      '${goals.kcalMin != null || goals.proteinMin != null ? ', минимум в ${logged.where((d) => foodLevel(d, goals) == Level.minimum).length}' : ''} · '
+                                      'в среднем ${_kcal(logged.fold<double>(0, (a, d) => a + d.kcal) / logged.length)} '
+                                      'и ${_grams(logged.fold<double>(0, (a, d) => a + d.protein) / logged.length)} белка',
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         );
       },

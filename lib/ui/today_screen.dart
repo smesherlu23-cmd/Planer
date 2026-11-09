@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../data/database.dart';
 import '../data/dates.dart';
@@ -54,44 +55,48 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     final db = context.db;
     final today = _today;
-    return Scaffold(
-      floatingActionButton: FloatingActionButton.extended(
-        heroTag: null,
-        onPressed: () => showTransactionSheet(context),
-        icon: const Icon(Icons.add_rounded),
-        label: const Text('Расход'),
-      ),
-      body: Watch(
-        deps: [today],
-        streams: () => [
-          db.watchHabits(),
-          db.watchAllHabitLogs(),
-          db.watchTrackers(),
-          db.watchAllEntriesBetween(today, today),
-          db.watchPrograms(),
-          db.watchSessions(),
-          db.watchJournalFor(JournalKind.day, today),
-          db.watchAllSettings(),
-          db.watchSleep(from: today),
-          db.watchMeals(from: today, to: today),
-          db.watchWater(from: today, to: today),
-          db.watchHardDays(),
-          db.watchTimeBlocks(),
-        ],
-        builder: (context, v) => _TodayBody(
-          today: today,
-          habits: v[0] as List<Habit>,
-          logs: v[1] as List<HabitLog>,
-          trackers: v[2] as List<Tracker>,
-          entriesToday: v[3] as List<TrackerEntry>,
-          programs: v[4] as List<Program>,
-          sessions: v[5] as List<WorkoutSession>,
-          dayNote: v[6] as JournalEntry?,
-          settings: v[7] as Map<String, String>,
-          lastNight: (v[8] as List<SleepLog>).firstOrNull,
-          food: dayFood(today, v[9] as List<Meal>, v[10] as List<WaterLog>),
-          badDay: (v[11] as Set<int>).contains(today),
-          blocks: todayBlocks(v[12] as List<TimeBlock>, v[7] as Map<String, String>),
+    return ScrollFabScope(
+      child: Scaffold(
+        floatingActionButton: ScrollFab(
+          child: FloatingActionButton.extended(
+            heroTag: null,
+            onPressed: () => _showQuickAdd(context, today),
+            icon: const Icon(Icons.add_rounded),
+            label: const Text('Записать'),
+          ),
+        ),
+        body: Watch(
+          deps: [today],
+          streams: () => [
+            db.watchHabits(),
+            db.watchAllHabitLogs(),
+            db.watchTrackers(),
+            db.watchAllEntriesBetween(today, today),
+            db.watchPrograms(),
+            db.watchSessions(),
+            db.watchJournalFor(JournalKind.day, today),
+            db.watchAllSettings(),
+            db.watchSleep(from: today),
+            db.watchMeals(from: today, to: today),
+            db.watchWater(from: today, to: today),
+            db.watchHardDays(),
+            db.watchTimeBlocks(),
+          ],
+          builder: (context, v) => _TodayBody(
+            today: today,
+            habits: v[0] as List<Habit>,
+            logs: v[1] as List<HabitLog>,
+            trackers: v[2] as List<Tracker>,
+            entriesToday: v[3] as List<TrackerEntry>,
+            programs: v[4] as List<Program>,
+            sessions: v[5] as List<WorkoutSession>,
+            dayNote: v[6] as JournalEntry?,
+            settings: v[7] as Map<String, String>,
+            lastNight: (v[8] as List<SleepLog>).firstOrNull,
+            food: dayFood(today, v[9] as List<Meal>, v[10] as List<WaterLog>),
+            badDay: (v[11] as Set<int>).contains(today),
+            blocks: todayBlocks(v[12] as List<TimeBlock>, v[7] as Map<String, String>),
+          ),
         ),
       ),
     );
@@ -169,6 +174,7 @@ class _TodayBody extends StatelessWidget {
     final habitsDone = todayHabits.where((h) => logsToday.containsKey(h.id)).length;
     final trackersDone = todayTrackers.where((t) => trackerCounts(t, dayValue(t, entriesToday))).length;
     final dark = Theme.of(context).brightness == Brightness.dark;
+    final sleepFirst = sleepGoals.onToday && (sleepStartedAt(settings) != null || (lastNight == null && DateTime.now().hour < 16));
 
     return ListView(
       padding: const EdgeInsets.only(bottom: 110),
@@ -176,55 +182,53 @@ class _TodayBody extends StatelessWidget {
         PageHeader(overline: formatDayLong(today), title: greeting(DateTime.now().hour)),
         HeroCard(
           colors: dark ? const [Color(0xFF4338CA), Color(0xFF7C3AED)] : const [Color(0xFF6366F1), Color(0xFF8B5CF6)],
-          child: Row(
+          child: Column(
             children: [
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text(
-                      'Сделано сегодня',
-                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+              Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Сделано сегодня',
+                          style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                        ),
+                        const SizedBox(height: 4),
+                        Text('$done из $total', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
+                        const SizedBox(height: 6),
+                        Text(_motivation(done, total, badDay), style: const TextStyle(color: Colors.white, height: 1.3)),
+                      ],
                     ),
-                    const SizedBox(height: 4),
-                    Text('$done из $total', style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white)),
-                    const SizedBox(height: 6),
-                    Text(_motivation(done, total, badDay), style: const TextStyle(color: Colors.white, height: 1.3)),
-                  ],
-                ),
+                  ),
+                  const SizedBox(width: 16),
+                  ProgressRing(
+                    value: total == 0 ? 0 : done / total,
+                    size: 84,
+                    stroke: 9,
+                    color: Colors.white,
+                    trackColor: Colors.white24,
+                    child: Text(
+                      '${total == 0 ? 0 : (100 * done / total).round()}%',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
+                    ),
+                  ),
+                ],
               ),
-              const SizedBox(width: 16),
-              ProgressRing(
-                value: total == 0 ? 0 : done / total,
-                size: 84,
-                stroke: 9,
-                color: Colors.white,
-                trackColor: Colors.white24,
-                child: Text(
-                  '${total == 0 ? 0 : (100 * done / total).round()}%',
-                  style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w700, fontSize: 18),
-                ),
+              const SizedBox(height: 14),
+              _HardDaySwitch(
+                on: badDay,
+                onChanged: (on) async {
+                  await db.setHardDay(today, on);
+                  if (on && context.mounted) showSnack(context, 'День отмечен как тяжёлый. Всё, что сделаешь, сохранится как минимум');
+                },
               ),
             ],
           ),
         ),
-        Card(
-          child: SwitchListTile(
-            contentPadding: const EdgeInsets.fromLTRB(16, 4, 12, 4),
-            secondary: const ColorIcon(Icons.battery_alert_rounded, color: Accent.reminders, size: 40),
-            title: const Text('Тяжёлый день'),
-            subtitle: Text(badDay ? 'Отметки сохраняются как минимум' : 'Засчитывается минимум'),
-            value: badDay,
-            onChanged: (on) async {
-              await db.setHardDay(today, on);
-              if (on && context.mounted) showSnack(context, 'День отмечен как тяжёлый. Всё, что сделаешь, сохранится как минимум');
-            },
-          ),
-        ),
         if (blocks.isNotEmpty) ...[const SectionTitle('По плану'), DayPlanTodayCard(blocks: blocks)],
-        if (sleepGoals.onToday || foodGoals.onToday) const SectionTitle('Сон и питание'),
-        if (sleepGoals.onToday) SleepTodayCard(today: today, lastNight: lastNight, settings: settings),
-        if (foodGoals.onToday) FoodTodayCard(today: today, totals: food, goals: foodGoals),
+        // Утром, пока сон не записан, и ночью с включённым таймером сон важнее всего: карточка сверху.
+        if (sleepFirst) ...[const SectionTitle('Сон'), SleepTodayCard(today: today, lastNight: lastNight, settings: settings)],
         if (nothingPlanned)
           EmptyHint(
             'На сегодня ничего не запланировано. Добавь привычки или трекеры, и они появятся здесь в нужные дни.',
@@ -249,6 +253,10 @@ class _TodayBody extends StatelessWidget {
           const SectionTitle('Тренировка'),
           _WorkoutCard(programs: todayPrograms, sessions: sessions, sessionToday: sessionToday, badDay: badDay),
         ],
+        if ((sleepGoals.onToday && !sleepFirst) || foodGoals.onToday)
+          SectionTitle(sleepGoals.onToday && !sleepFirst ? (foodGoals.onToday ? 'Сон и питание' : 'Сон') : 'Питание'),
+        if (sleepGoals.onToday && !sleepFirst) SleepTodayCard(today: today, lastNight: lastNight, settings: settings),
+        if (foodGoals.onToday) FoodTodayCard(today: today, totals: food, goals: foodGoals),
         const SectionTitle('Вечер'),
         _ActionCard(
           icon: Icons.edit_note_rounded,
@@ -281,11 +289,163 @@ class _TodayBody extends StatelessWidget {
   }
 }
 
+/// Быстрая запись за сегодня: всё, что обычно вносишь за день, в одном месте.
+Future<void> _showQuickAdd(BuildContext context, int today) async {
+  final db = context.db;
+  final settings = await db.watchAllSettings().first;
+  final trackers = (await db.watchTrackers().first).where((t) => maskHasDay(t.daysMask, today)).toList();
+  final dayNote = await db.watchJournalFor(JournalKind.day, today).first;
+  if (!context.mounted) return;
+  final food = FoodGoals.from(settings);
+  await showModalBottomSheet<void>(
+    context: context,
+    showDragHandle: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (sheet) {
+      void run(Future<void> Function() action) {
+        Navigator.pop(sheet);
+        action();
+      }
+
+      Widget item(IconData icon, Color color, String label, Future<void> Function() action) =>
+          _QuickItem(icon: icon, color: color, label: label, onTap: () => run(action));
+
+      return SingleChildScrollView(
+        padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(4, 0, 4, 12),
+              child: Text('Записать за сегодня', style: Theme.of(sheet).textTheme.titleLarge),
+            ),
+            GridView.count(
+              crossAxisCount: 3,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 8,
+              crossAxisSpacing: 8,
+              childAspectRatio: 1.05,
+              children: [
+                item(Icons.payments_rounded, Accent.money, 'Расход', () => showTransactionSheet(context)),
+                item(Icons.restaurant_rounded, Accent.food, 'Еда', () => showEatSheet(context, day: today)),
+                item(Icons.water_drop_rounded, Accent.food, 'Стакан воды', () async {
+                  await addGlass(context, day: today, ml: food.glass);
+                  if (context.mounted) showSnack(context, 'Записал стакан воды');
+                }),
+                item(Icons.bedtime_rounded, Accent.sleep, 'Сон', () => showSleepSheet(context)),
+                item(
+                  Icons.edit_note_rounded,
+                  Accent.journal,
+                  'Итог дня',
+                  () => openJournalEditor(context, kind: JournalKind.day, day: today, existing: dayNote),
+                ),
+                for (final t in trackers)
+                  item(
+                    appIcon(t.icon, fallback: 'chart').icon,
+                    appIcon(t.icon, fallback: 'chart').color,
+                    t.name,
+                    () => showEntryDialog(context, t, day: today),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+}
+
+class _QuickItem extends StatelessWidget {
+  const _QuickItem({required this.icon, required this.color, required this.label, required this.onTap});
+  final IconData icon;
+  final Color color;
+  final String label;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Material(
+      color: theme.colorScheme.surfaceContainer,
+      borderRadius: BorderRadius.circular(18),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(8),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              IconBadge(icon, color: color, size: 44, soft: true),
+              const SizedBox(height: 8),
+              Text(label, textAlign: TextAlign.center, maxLines: 2, overflow: TextOverflow.ellipsis, style: theme.textTheme.labelLarge),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 String greeting(int hour) {
   if (hour >= 5 && hour < 12) return 'Доброе утро';
   if (hour >= 12 && hour < 18) return 'Добрый день';
   if (hour >= 18) return 'Добрый вечер';
   return 'Доброй ночи';
+}
+
+/// Переключатель «Тяжёлый день» внутри главной карточки: не занимает отдельную карточку.
+class _HardDaySwitch extends StatelessWidget {
+  const _HardDaySwitch({required this.on, required this.onChanged});
+  final bool on;
+  final ValueChanged<bool> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.white.withValues(alpha: on ? 0.24 : 0.14),
+      borderRadius: BorderRadius.circular(16),
+      clipBehavior: Clip.antiAlias,
+      child: InkWell(
+        onTap: () => onChanged(!on),
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 6, 6, 6),
+          child: Row(
+            children: [
+              Icon(on ? Icons.battery_alert_rounded : Icons.battery_full_rounded, color: Colors.white, size: 20),
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    const Text(
+                      'Тяжёлый день',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
+                    Text(
+                      on ? 'Засчитывается минимум' : 'Мало сил? Хватит минимума',
+                      style: const TextStyle(color: Colors.white70, fontSize: 12),
+                    ),
+                  ],
+                ),
+              ),
+              Switch(
+                value: on,
+                onChanged: onChanged,
+                activeThumbColor: const Color(0xFF6366F1),
+                activeTrackColor: Colors.white,
+                inactiveThumbColor: Colors.white,
+                inactiveTrackColor: Colors.white24,
+                trackOutlineColor: const WidgetStatePropertyAll(Colors.transparent),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _Counter extends StatelessWidget {
@@ -346,7 +506,10 @@ class _HabitTile extends StatelessWidget {
     final showMinimum = badDay && habit.minimumText != null && !done;
     return Card(
       child: InkWell(
-        onTap: () => db.setHabitDone(habit.id, today, done: !done, minimum: badDay),
+        onTap: () {
+          HapticFeedback.lightImpact();
+          db.setHabitDone(habit.id, today, done: !done, minimum: badDay);
+        },
         onLongPress: () => _markSheet(context),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(14, 12, 16, 12),
