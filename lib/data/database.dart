@@ -46,6 +46,9 @@ enum FundKind {
 /// На что уходит время в плане дня.
 enum BlockKind { sleep, work, study, sport, rest, home, road, food, other }
 
+/// Как повторяется задача. Следующая копия создаётся, когда отмечаешь текущую.
+enum TaskRepeat { none, daily, weekdays, weekly, monthly }
+
 enum JournalKind {
   /// Итог дня.
   day,
@@ -343,6 +346,47 @@ class TimeBlocks extends Table {
 }
 
 /// Строка бюджета на месяц: плановый доход по категории, лимит расходов по категории или взнос в копилку и платёж по долгу.
+/// Задача: разовое дело с датой, временем, приоритетом и оценкой.
+class Tasks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+
+  /// Шаг большой задачи. Удаляется вместе с ней.
+  IntColumn get parentId => integer().nullable().references(Tasks, #id, onDelete: KeyAction.cascade)();
+
+  /// День как 20261109. null: во «Входящих», день ещё не выбран.
+  IntColumn get day => integer().nullable()();
+
+  /// Время в минутах от полуночи.
+  IntColumn get time => integer().nullable()();
+  BoolColumn get remind => boolean().withDefault(const Constant(false))();
+
+  /// 1 главное, 2 важное, 3 обычное, 4 без приоритета.
+  IntColumn get priority => integer().withDefault(const Constant(4))();
+
+  /// Сколько минут займёт, по оценке.
+  IntColumn get estimate => integer().nullable()();
+
+  /// Сфера, как у блоков плана дня: задача подсказывается в блоке того же вида.
+  IntColumn get kind => intEnum<BlockKind>().nullable()();
+  IntColumn get repeat => intEnum<TaskRepeat>().withDefault(const Constant(0))();
+  IntColumn get doneDay => integer().nullable()();
+  DateTimeColumn get doneAt => dateTime().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Отрезок сосредоточенной работы из таймера фокуса.
+class FocusSessions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime()();
+  IntColumn get minutes => integer()();
+  IntColumn get taskId => integer().nullable().references(Tasks, #id, onDelete: KeyAction.setNull)();
+  IntColumn get kind => intEnum<BlockKind>().nullable()();
+}
+
 class BudgetLines extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -391,13 +435,15 @@ class Settings extends Table {
     HardDays,
     TimeBlocks,
     BudgetLines,
+    Tasks,
+    FocusSessions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -437,6 +483,19 @@ class AppDatabase extends _$AppDatabase {
         await add(meals, meals.carbs);
         await add(meals, meals.slot);
         await fillTemplateMacros();
+      }
+      if (from < 5) {
+        // Версия 5: задачи и таймер фокуса.
+        Future<void> create(TableInfo<Table, Object?> table) async {
+          final found = await customSelect(
+            "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+            variables: [Variable<String>(table.actualTableName)],
+          ).get();
+          if (found.isEmpty) await m.createTable(table);
+        }
+
+        await create(tasks);
+        await create(focusSessions);
       }
     },
     beforeOpen: (details) async {

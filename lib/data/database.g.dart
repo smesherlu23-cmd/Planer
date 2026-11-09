@@ -8508,6 +8508,1020 @@ class BudgetLinesCompanion extends UpdateCompanion<BudgetLine> {
   }
 }
 
+class $TasksTable extends Tasks with TableInfo<$TasksTable, Task> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $TasksTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'),
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _noteMeta = const VerificationMeta('note');
+  @override
+  late final GeneratedColumn<String> note = GeneratedColumn<String>(
+    'note',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _parentIdMeta = const VerificationMeta('parentId');
+  @override
+  late final GeneratedColumn<int> parentId = GeneratedColumn<int>(
+    'parent_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES tasks (id) ON DELETE CASCADE'),
+  );
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<int> day = GeneratedColumn<int>('day', aliasedName, true, type: DriftSqlType.int, requiredDuringInsert: false);
+  static const VerificationMeta _timeMeta = const VerificationMeta('time');
+  @override
+  late final GeneratedColumn<int> time = GeneratedColumn<int>(
+    'time',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _remindMeta = const VerificationMeta('remind');
+  @override
+  late final GeneratedColumn<bool> remind = GeneratedColumn<bool>(
+    'remind',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("remind" IN (0, 1))'),
+    defaultValue: const Constant(false),
+  );
+  static const VerificationMeta _priorityMeta = const VerificationMeta('priority');
+  @override
+  late final GeneratedColumn<int> priority = GeneratedColumn<int>(
+    'priority',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(4),
+  );
+  static const VerificationMeta _estimateMeta = const VerificationMeta('estimate');
+  @override
+  late final GeneratedColumn<int> estimate = GeneratedColumn<int>(
+    'estimate',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<BlockKind?, int> kind = GeneratedColumn<int>(
+    'kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  ).withConverter<BlockKind?>($TasksTable.$converterkindn);
+  @override
+  late final GeneratedColumnWithTypeConverter<TaskRepeat, int> repeat = GeneratedColumn<int>(
+    'repeat',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  ).withConverter<TaskRepeat>($TasksTable.$converterrepeat);
+  static const VerificationMeta _doneDayMeta = const VerificationMeta('doneDay');
+  @override
+  late final GeneratedColumn<int> doneDay = GeneratedColumn<int>(
+    'done_day',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _doneAtMeta = const VerificationMeta('doneAt');
+  @override
+  late final GeneratedColumn<DateTime> doneAt = GeneratedColumn<DateTime>(
+    'done_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _sortOrderMeta = const VerificationMeta('sortOrder');
+  @override
+  late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
+    'sort_order',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta('createdAt');
+  @override
+  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
+    'created_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: false,
+    defaultValue: currentDateAndTime,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    id,
+    title,
+    note,
+    parentId,
+    day,
+    time,
+    remind,
+    priority,
+    estimate,
+    kind,
+    repeat,
+    doneDay,
+    doneAt,
+    sortOrder,
+    createdAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'tasks';
+  @override
+  VerificationContext validateIntegrity(Insertable<Task> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('title')) {
+      context.handle(_titleMeta, title.isAcceptableOrUnknown(data['title']!, _titleMeta));
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('note')) {
+      context.handle(_noteMeta, note.isAcceptableOrUnknown(data['note']!, _noteMeta));
+    }
+    if (data.containsKey('parent_id')) {
+      context.handle(_parentIdMeta, parentId.isAcceptableOrUnknown(data['parent_id']!, _parentIdMeta));
+    }
+    if (data.containsKey('day')) {
+      context.handle(_dayMeta, day.isAcceptableOrUnknown(data['day']!, _dayMeta));
+    }
+    if (data.containsKey('time')) {
+      context.handle(_timeMeta, time.isAcceptableOrUnknown(data['time']!, _timeMeta));
+    }
+    if (data.containsKey('remind')) {
+      context.handle(_remindMeta, remind.isAcceptableOrUnknown(data['remind']!, _remindMeta));
+    }
+    if (data.containsKey('priority')) {
+      context.handle(_priorityMeta, priority.isAcceptableOrUnknown(data['priority']!, _priorityMeta));
+    }
+    if (data.containsKey('estimate')) {
+      context.handle(_estimateMeta, estimate.isAcceptableOrUnknown(data['estimate']!, _estimateMeta));
+    }
+    if (data.containsKey('done_day')) {
+      context.handle(_doneDayMeta, doneDay.isAcceptableOrUnknown(data['done_day']!, _doneDayMeta));
+    }
+    if (data.containsKey('done_at')) {
+      context.handle(_doneAtMeta, doneAt.isAcceptableOrUnknown(data['done_at']!, _doneAtMeta));
+    }
+    if (data.containsKey('sort_order')) {
+      context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
+    }
+    if (data.containsKey('created_at')) {
+      context.handle(_createdAtMeta, createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  Task map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return Task(
+      id: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      title: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}title'])!,
+      note: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}note']),
+      parentId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}parent_id']),
+      day: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}day']),
+      time: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}time']),
+      remind: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}remind'])!,
+      priority: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}priority'])!,
+      estimate: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}estimate']),
+      kind: $TasksTable.$converterkindn.fromSql(attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}kind'])),
+      repeat: $TasksTable.$converterrepeat.fromSql(attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}repeat'])!),
+      doneDay: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}done_day']),
+      doneAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}done_at']),
+      sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      createdAt: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}created_at'])!,
+    );
+  }
+
+  @override
+  $TasksTable createAlias(String alias) {
+    return $TasksTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<BlockKind, int, int> $converterkind = const EnumIndexConverter<BlockKind>(BlockKind.values);
+  static JsonTypeConverter2<BlockKind?, int?, int?> $converterkindn = JsonTypeConverter2.asNullable($converterkind);
+  static JsonTypeConverter2<TaskRepeat, int, int> $converterrepeat = const EnumIndexConverter<TaskRepeat>(TaskRepeat.values);
+}
+
+class Task extends DataClass implements Insertable<Task> {
+  final int id;
+  final String title;
+  final String? note;
+
+  /// Шаг большой задачи. Удаляется вместе с ней.
+  final int? parentId;
+
+  /// День как 20261109. null: во «Входящих», день ещё не выбран.
+  final int? day;
+
+  /// Время в минутах от полуночи.
+  final int? time;
+  final bool remind;
+
+  /// 1 главное, 2 важное, 3 обычное, 4 без приоритета.
+  final int priority;
+
+  /// Сколько минут займёт, по оценке.
+  final int? estimate;
+
+  /// Сфера, как у блоков плана дня: задача подсказывается в блоке того же вида.
+  final BlockKind? kind;
+  final TaskRepeat repeat;
+  final int? doneDay;
+  final DateTime? doneAt;
+  final int sortOrder;
+  final DateTime createdAt;
+  const Task({
+    required this.id,
+    required this.title,
+    this.note,
+    this.parentId,
+    this.day,
+    this.time,
+    required this.remind,
+    required this.priority,
+    this.estimate,
+    this.kind,
+    required this.repeat,
+    this.doneDay,
+    this.doneAt,
+    required this.sortOrder,
+    required this.createdAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['title'] = Variable<String>(title);
+    if (!nullToAbsent || note != null) {
+      map['note'] = Variable<String>(note);
+    }
+    if (!nullToAbsent || parentId != null) {
+      map['parent_id'] = Variable<int>(parentId);
+    }
+    if (!nullToAbsent || day != null) {
+      map['day'] = Variable<int>(day);
+    }
+    if (!nullToAbsent || time != null) {
+      map['time'] = Variable<int>(time);
+    }
+    map['remind'] = Variable<bool>(remind);
+    map['priority'] = Variable<int>(priority);
+    if (!nullToAbsent || estimate != null) {
+      map['estimate'] = Variable<int>(estimate);
+    }
+    if (!nullToAbsent || kind != null) {
+      map['kind'] = Variable<int>($TasksTable.$converterkindn.toSql(kind));
+    }
+    {
+      map['repeat'] = Variable<int>($TasksTable.$converterrepeat.toSql(repeat));
+    }
+    if (!nullToAbsent || doneDay != null) {
+      map['done_day'] = Variable<int>(doneDay);
+    }
+    if (!nullToAbsent || doneAt != null) {
+      map['done_at'] = Variable<DateTime>(doneAt);
+    }
+    map['sort_order'] = Variable<int>(sortOrder);
+    map['created_at'] = Variable<DateTime>(createdAt);
+    return map;
+  }
+
+  TasksCompanion toCompanion(bool nullToAbsent) {
+    return TasksCompanion(
+      id: Value(id),
+      title: Value(title),
+      note: note == null && nullToAbsent ? const Value.absent() : Value(note),
+      parentId: parentId == null && nullToAbsent ? const Value.absent() : Value(parentId),
+      day: day == null && nullToAbsent ? const Value.absent() : Value(day),
+      time: time == null && nullToAbsent ? const Value.absent() : Value(time),
+      remind: Value(remind),
+      priority: Value(priority),
+      estimate: estimate == null && nullToAbsent ? const Value.absent() : Value(estimate),
+      kind: kind == null && nullToAbsent ? const Value.absent() : Value(kind),
+      repeat: Value(repeat),
+      doneDay: doneDay == null && nullToAbsent ? const Value.absent() : Value(doneDay),
+      doneAt: doneAt == null && nullToAbsent ? const Value.absent() : Value(doneAt),
+      sortOrder: Value(sortOrder),
+      createdAt: Value(createdAt),
+    );
+  }
+
+  factory Task.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return Task(
+      id: serializer.fromJson<int>(json['id']),
+      title: serializer.fromJson<String>(json['title']),
+      note: serializer.fromJson<String?>(json['note']),
+      parentId: serializer.fromJson<int?>(json['parentId']),
+      day: serializer.fromJson<int?>(json['day']),
+      time: serializer.fromJson<int?>(json['time']),
+      remind: serializer.fromJson<bool>(json['remind']),
+      priority: serializer.fromJson<int>(json['priority']),
+      estimate: serializer.fromJson<int?>(json['estimate']),
+      kind: $TasksTable.$converterkindn.fromJson(serializer.fromJson<int?>(json['kind'])),
+      repeat: $TasksTable.$converterrepeat.fromJson(serializer.fromJson<int>(json['repeat'])),
+      doneDay: serializer.fromJson<int?>(json['doneDay']),
+      doneAt: serializer.fromJson<DateTime?>(json['doneAt']),
+      sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      createdAt: serializer.fromJson<DateTime>(json['createdAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'title': serializer.toJson<String>(title),
+      'note': serializer.toJson<String?>(note),
+      'parentId': serializer.toJson<int?>(parentId),
+      'day': serializer.toJson<int?>(day),
+      'time': serializer.toJson<int?>(time),
+      'remind': serializer.toJson<bool>(remind),
+      'priority': serializer.toJson<int>(priority),
+      'estimate': serializer.toJson<int?>(estimate),
+      'kind': serializer.toJson<int?>($TasksTable.$converterkindn.toJson(kind)),
+      'repeat': serializer.toJson<int>($TasksTable.$converterrepeat.toJson(repeat)),
+      'doneDay': serializer.toJson<int?>(doneDay),
+      'doneAt': serializer.toJson<DateTime?>(doneAt),
+      'sortOrder': serializer.toJson<int>(sortOrder),
+      'createdAt': serializer.toJson<DateTime>(createdAt),
+    };
+  }
+
+  Task copyWith({
+    int? id,
+    String? title,
+    Value<String?> note = const Value.absent(),
+    Value<int?> parentId = const Value.absent(),
+    Value<int?> day = const Value.absent(),
+    Value<int?> time = const Value.absent(),
+    bool? remind,
+    int? priority,
+    Value<int?> estimate = const Value.absent(),
+    Value<BlockKind?> kind = const Value.absent(),
+    TaskRepeat? repeat,
+    Value<int?> doneDay = const Value.absent(),
+    Value<DateTime?> doneAt = const Value.absent(),
+    int? sortOrder,
+    DateTime? createdAt,
+  }) => Task(
+    id: id ?? this.id,
+    title: title ?? this.title,
+    note: note.present ? note.value : this.note,
+    parentId: parentId.present ? parentId.value : this.parentId,
+    day: day.present ? day.value : this.day,
+    time: time.present ? time.value : this.time,
+    remind: remind ?? this.remind,
+    priority: priority ?? this.priority,
+    estimate: estimate.present ? estimate.value : this.estimate,
+    kind: kind.present ? kind.value : this.kind,
+    repeat: repeat ?? this.repeat,
+    doneDay: doneDay.present ? doneDay.value : this.doneDay,
+    doneAt: doneAt.present ? doneAt.value : this.doneAt,
+    sortOrder: sortOrder ?? this.sortOrder,
+    createdAt: createdAt ?? this.createdAt,
+  );
+  Task copyWithCompanion(TasksCompanion data) {
+    return Task(
+      id: data.id.present ? data.id.value : this.id,
+      title: data.title.present ? data.title.value : this.title,
+      note: data.note.present ? data.note.value : this.note,
+      parentId: data.parentId.present ? data.parentId.value : this.parentId,
+      day: data.day.present ? data.day.value : this.day,
+      time: data.time.present ? data.time.value : this.time,
+      remind: data.remind.present ? data.remind.value : this.remind,
+      priority: data.priority.present ? data.priority.value : this.priority,
+      estimate: data.estimate.present ? data.estimate.value : this.estimate,
+      kind: data.kind.present ? data.kind.value : this.kind,
+      repeat: data.repeat.present ? data.repeat.value : this.repeat,
+      doneDay: data.doneDay.present ? data.doneDay.value : this.doneDay,
+      doneAt: data.doneAt.present ? data.doneAt.value : this.doneAt,
+      sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('Task(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('parentId: $parentId, ')
+          ..write('day: $day, ')
+          ..write('time: $time, ')
+          ..write('remind: $remind, ')
+          ..write('priority: $priority, ')
+          ..write('estimate: $estimate, ')
+          ..write('kind: $kind, ')
+          ..write('repeat: $repeat, ')
+          ..write('doneDay: $doneDay, ')
+          ..write('doneAt: $doneAt, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode =>
+      Object.hash(id, title, note, parentId, day, time, remind, priority, estimate, kind, repeat, doneDay, doneAt, sortOrder, createdAt);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is Task &&
+          other.id == this.id &&
+          other.title == this.title &&
+          other.note == this.note &&
+          other.parentId == this.parentId &&
+          other.day == this.day &&
+          other.time == this.time &&
+          other.remind == this.remind &&
+          other.priority == this.priority &&
+          other.estimate == this.estimate &&
+          other.kind == this.kind &&
+          other.repeat == this.repeat &&
+          other.doneDay == this.doneDay &&
+          other.doneAt == this.doneAt &&
+          other.sortOrder == this.sortOrder &&
+          other.createdAt == this.createdAt);
+}
+
+class TasksCompanion extends UpdateCompanion<Task> {
+  final Value<int> id;
+  final Value<String> title;
+  final Value<String?> note;
+  final Value<int?> parentId;
+  final Value<int?> day;
+  final Value<int?> time;
+  final Value<bool> remind;
+  final Value<int> priority;
+  final Value<int?> estimate;
+  final Value<BlockKind?> kind;
+  final Value<TaskRepeat> repeat;
+  final Value<int?> doneDay;
+  final Value<DateTime?> doneAt;
+  final Value<int> sortOrder;
+  final Value<DateTime> createdAt;
+  const TasksCompanion({
+    this.id = const Value.absent(),
+    this.title = const Value.absent(),
+    this.note = const Value.absent(),
+    this.parentId = const Value.absent(),
+    this.day = const Value.absent(),
+    this.time = const Value.absent(),
+    this.remind = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.estimate = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.repeat = const Value.absent(),
+    this.doneDay = const Value.absent(),
+    this.doneAt = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  });
+  TasksCompanion.insert({
+    this.id = const Value.absent(),
+    required String title,
+    this.note = const Value.absent(),
+    this.parentId = const Value.absent(),
+    this.day = const Value.absent(),
+    this.time = const Value.absent(),
+    this.remind = const Value.absent(),
+    this.priority = const Value.absent(),
+    this.estimate = const Value.absent(),
+    this.kind = const Value.absent(),
+    this.repeat = const Value.absent(),
+    this.doneDay = const Value.absent(),
+    this.doneAt = const Value.absent(),
+    this.sortOrder = const Value.absent(),
+    this.createdAt = const Value.absent(),
+  }) : title = Value(title);
+  static Insertable<Task> custom({
+    Expression<int>? id,
+    Expression<String>? title,
+    Expression<String>? note,
+    Expression<int>? parentId,
+    Expression<int>? day,
+    Expression<int>? time,
+    Expression<bool>? remind,
+    Expression<int>? priority,
+    Expression<int>? estimate,
+    Expression<int>? kind,
+    Expression<int>? repeat,
+    Expression<int>? doneDay,
+    Expression<DateTime>? doneAt,
+    Expression<int>? sortOrder,
+    Expression<DateTime>? createdAt,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (title != null) 'title': title,
+      if (note != null) 'note': note,
+      if (parentId != null) 'parent_id': parentId,
+      if (day != null) 'day': day,
+      if (time != null) 'time': time,
+      if (remind != null) 'remind': remind,
+      if (priority != null) 'priority': priority,
+      if (estimate != null) 'estimate': estimate,
+      if (kind != null) 'kind': kind,
+      if (repeat != null) 'repeat': repeat,
+      if (doneDay != null) 'done_day': doneDay,
+      if (doneAt != null) 'done_at': doneAt,
+      if (sortOrder != null) 'sort_order': sortOrder,
+      if (createdAt != null) 'created_at': createdAt,
+    });
+  }
+
+  TasksCompanion copyWith({
+    Value<int>? id,
+    Value<String>? title,
+    Value<String?>? note,
+    Value<int?>? parentId,
+    Value<int?>? day,
+    Value<int?>? time,
+    Value<bool>? remind,
+    Value<int>? priority,
+    Value<int?>? estimate,
+    Value<BlockKind?>? kind,
+    Value<TaskRepeat>? repeat,
+    Value<int?>? doneDay,
+    Value<DateTime?>? doneAt,
+    Value<int>? sortOrder,
+    Value<DateTime>? createdAt,
+  }) {
+    return TasksCompanion(
+      id: id ?? this.id,
+      title: title ?? this.title,
+      note: note ?? this.note,
+      parentId: parentId ?? this.parentId,
+      day: day ?? this.day,
+      time: time ?? this.time,
+      remind: remind ?? this.remind,
+      priority: priority ?? this.priority,
+      estimate: estimate ?? this.estimate,
+      kind: kind ?? this.kind,
+      repeat: repeat ?? this.repeat,
+      doneDay: doneDay ?? this.doneDay,
+      doneAt: doneAt ?? this.doneAt,
+      sortOrder: sortOrder ?? this.sortOrder,
+      createdAt: createdAt ?? this.createdAt,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (note.present) {
+      map['note'] = Variable<String>(note.value);
+    }
+    if (parentId.present) {
+      map['parent_id'] = Variable<int>(parentId.value);
+    }
+    if (day.present) {
+      map['day'] = Variable<int>(day.value);
+    }
+    if (time.present) {
+      map['time'] = Variable<int>(time.value);
+    }
+    if (remind.present) {
+      map['remind'] = Variable<bool>(remind.value);
+    }
+    if (priority.present) {
+      map['priority'] = Variable<int>(priority.value);
+    }
+    if (estimate.present) {
+      map['estimate'] = Variable<int>(estimate.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<int>($TasksTable.$converterkindn.toSql(kind.value));
+    }
+    if (repeat.present) {
+      map['repeat'] = Variable<int>($TasksTable.$converterrepeat.toSql(repeat.value));
+    }
+    if (doneDay.present) {
+      map['done_day'] = Variable<int>(doneDay.value);
+    }
+    if (doneAt.present) {
+      map['done_at'] = Variable<DateTime>(doneAt.value);
+    }
+    if (sortOrder.present) {
+      map['sort_order'] = Variable<int>(sortOrder.value);
+    }
+    if (createdAt.present) {
+      map['created_at'] = Variable<DateTime>(createdAt.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('TasksCompanion(')
+          ..write('id: $id, ')
+          ..write('title: $title, ')
+          ..write('note: $note, ')
+          ..write('parentId: $parentId, ')
+          ..write('day: $day, ')
+          ..write('time: $time, ')
+          ..write('remind: $remind, ')
+          ..write('priority: $priority, ')
+          ..write('estimate: $estimate, ')
+          ..write('kind: $kind, ')
+          ..write('repeat: $repeat, ')
+          ..write('doneDay: $doneDay, ')
+          ..write('doneAt: $doneAt, ')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('createdAt: $createdAt')
+          ..write(')'))
+        .toString();
+  }
+}
+
+class $FocusSessionsTable extends FocusSessions with TableInfo<$FocusSessionsTable, FocusSession> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $FocusSessionsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _idMeta = const VerificationMeta('id');
+  @override
+  late final GeneratedColumn<int> id = GeneratedColumn<int>(
+    'id',
+    aliasedName,
+    false,
+    hasAutoIncrement: true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('PRIMARY KEY AUTOINCREMENT'),
+  );
+  static const VerificationMeta _dayMeta = const VerificationMeta('day');
+  @override
+  late final GeneratedColumn<int> day = GeneratedColumn<int>('day', aliasedName, false, type: DriftSqlType.int, requiredDuringInsert: true);
+  static const VerificationMeta _atMeta = const VerificationMeta('at');
+  @override
+  late final GeneratedColumn<DateTime> at = GeneratedColumn<DateTime>(
+    'at',
+    aliasedName,
+    false,
+    type: DriftSqlType.dateTime,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _minutesMeta = const VerificationMeta('minutes');
+  @override
+  late final GeneratedColumn<int> minutes = GeneratedColumn<int>(
+    'minutes',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _taskIdMeta = const VerificationMeta('taskId');
+  @override
+  late final GeneratedColumn<int> taskId = GeneratedColumn<int>(
+    'task_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES tasks (id) ON DELETE SET NULL'),
+  );
+  @override
+  late final GeneratedColumnWithTypeConverter<BlockKind?, int> kind = GeneratedColumn<int>(
+    'kind',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  ).withConverter<BlockKind?>($FocusSessionsTable.$converterkindn);
+  @override
+  List<GeneratedColumn> get $columns => [id, day, at, minutes, taskId, kind];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'focus_sessions';
+  @override
+  VerificationContext validateIntegrity(Insertable<FocusSession> instance, {bool isInserting = false}) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('id')) {
+      context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
+    }
+    if (data.containsKey('day')) {
+      context.handle(_dayMeta, day.isAcceptableOrUnknown(data['day']!, _dayMeta));
+    } else if (isInserting) {
+      context.missing(_dayMeta);
+    }
+    if (data.containsKey('at')) {
+      context.handle(_atMeta, at.isAcceptableOrUnknown(data['at']!, _atMeta));
+    } else if (isInserting) {
+      context.missing(_atMeta);
+    }
+    if (data.containsKey('minutes')) {
+      context.handle(_minutesMeta, minutes.isAcceptableOrUnknown(data['minutes']!, _minutesMeta));
+    } else if (isInserting) {
+      context.missing(_minutesMeta);
+    }
+    if (data.containsKey('task_id')) {
+      context.handle(_taskIdMeta, taskId.isAcceptableOrUnknown(data['task_id']!, _taskIdMeta));
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {id};
+  @override
+  FocusSession map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return FocusSession(
+      id: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}id'])!,
+      day: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}day'])!,
+      at: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}at'])!,
+      minutes: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}minutes'])!,
+      taskId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}task_id']),
+      kind: $FocusSessionsTable.$converterkindn.fromSql(
+        attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}kind']),
+      ),
+    );
+  }
+
+  @override
+  $FocusSessionsTable createAlias(String alias) {
+    return $FocusSessionsTable(attachedDatabase, alias);
+  }
+
+  static JsonTypeConverter2<BlockKind, int, int> $converterkind = const EnumIndexConverter<BlockKind>(BlockKind.values);
+  static JsonTypeConverter2<BlockKind?, int?, int?> $converterkindn = JsonTypeConverter2.asNullable($converterkind);
+}
+
+class FocusSession extends DataClass implements Insertable<FocusSession> {
+  final int id;
+  final int day;
+  final DateTime at;
+  final int minutes;
+  final int? taskId;
+  final BlockKind? kind;
+  const FocusSession({required this.id, required this.day, required this.at, required this.minutes, this.taskId, this.kind});
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['id'] = Variable<int>(id);
+    map['day'] = Variable<int>(day);
+    map['at'] = Variable<DateTime>(at);
+    map['minutes'] = Variable<int>(minutes);
+    if (!nullToAbsent || taskId != null) {
+      map['task_id'] = Variable<int>(taskId);
+    }
+    if (!nullToAbsent || kind != null) {
+      map['kind'] = Variable<int>($FocusSessionsTable.$converterkindn.toSql(kind));
+    }
+    return map;
+  }
+
+  FocusSessionsCompanion toCompanion(bool nullToAbsent) {
+    return FocusSessionsCompanion(
+      id: Value(id),
+      day: Value(day),
+      at: Value(at),
+      minutes: Value(minutes),
+      taskId: taskId == null && nullToAbsent ? const Value.absent() : Value(taskId),
+      kind: kind == null && nullToAbsent ? const Value.absent() : Value(kind),
+    );
+  }
+
+  factory FocusSession.fromJson(Map<String, dynamic> json, {ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return FocusSession(
+      id: serializer.fromJson<int>(json['id']),
+      day: serializer.fromJson<int>(json['day']),
+      at: serializer.fromJson<DateTime>(json['at']),
+      minutes: serializer.fromJson<int>(json['minutes']),
+      taskId: serializer.fromJson<int?>(json['taskId']),
+      kind: $FocusSessionsTable.$converterkindn.fromJson(serializer.fromJson<int?>(json['kind'])),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'id': serializer.toJson<int>(id),
+      'day': serializer.toJson<int>(day),
+      'at': serializer.toJson<DateTime>(at),
+      'minutes': serializer.toJson<int>(minutes),
+      'taskId': serializer.toJson<int?>(taskId),
+      'kind': serializer.toJson<int?>($FocusSessionsTable.$converterkindn.toJson(kind)),
+    };
+  }
+
+  FocusSession copyWith({
+    int? id,
+    int? day,
+    DateTime? at,
+    int? minutes,
+    Value<int?> taskId = const Value.absent(),
+    Value<BlockKind?> kind = const Value.absent(),
+  }) => FocusSession(
+    id: id ?? this.id,
+    day: day ?? this.day,
+    at: at ?? this.at,
+    minutes: minutes ?? this.minutes,
+    taskId: taskId.present ? taskId.value : this.taskId,
+    kind: kind.present ? kind.value : this.kind,
+  );
+  FocusSession copyWithCompanion(FocusSessionsCompanion data) {
+    return FocusSession(
+      id: data.id.present ? data.id.value : this.id,
+      day: data.day.present ? data.day.value : this.day,
+      at: data.at.present ? data.at.value : this.at,
+      minutes: data.minutes.present ? data.minutes.value : this.minutes,
+      taskId: data.taskId.present ? data.taskId.value : this.taskId,
+      kind: data.kind.present ? data.kind.value : this.kind,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusSession(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('at: $at, ')
+          ..write('minutes: $minutes, ')
+          ..write('taskId: $taskId, ')
+          ..write('kind: $kind')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hash(id, day, at, minutes, taskId, kind);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is FocusSession &&
+          other.id == this.id &&
+          other.day == this.day &&
+          other.at == this.at &&
+          other.minutes == this.minutes &&
+          other.taskId == this.taskId &&
+          other.kind == this.kind);
+}
+
+class FocusSessionsCompanion extends UpdateCompanion<FocusSession> {
+  final Value<int> id;
+  final Value<int> day;
+  final Value<DateTime> at;
+  final Value<int> minutes;
+  final Value<int?> taskId;
+  final Value<BlockKind?> kind;
+  const FocusSessionsCompanion({
+    this.id = const Value.absent(),
+    this.day = const Value.absent(),
+    this.at = const Value.absent(),
+    this.minutes = const Value.absent(),
+    this.taskId = const Value.absent(),
+    this.kind = const Value.absent(),
+  });
+  FocusSessionsCompanion.insert({
+    this.id = const Value.absent(),
+    required int day,
+    required DateTime at,
+    required int minutes,
+    this.taskId = const Value.absent(),
+    this.kind = const Value.absent(),
+  }) : day = Value(day),
+       at = Value(at),
+       minutes = Value(minutes);
+  static Insertable<FocusSession> custom({
+    Expression<int>? id,
+    Expression<int>? day,
+    Expression<DateTime>? at,
+    Expression<int>? minutes,
+    Expression<int>? taskId,
+    Expression<int>? kind,
+  }) {
+    return RawValuesInsertable({
+      if (id != null) 'id': id,
+      if (day != null) 'day': day,
+      if (at != null) 'at': at,
+      if (minutes != null) 'minutes': minutes,
+      if (taskId != null) 'task_id': taskId,
+      if (kind != null) 'kind': kind,
+    });
+  }
+
+  FocusSessionsCompanion copyWith({
+    Value<int>? id,
+    Value<int>? day,
+    Value<DateTime>? at,
+    Value<int>? minutes,
+    Value<int?>? taskId,
+    Value<BlockKind?>? kind,
+  }) {
+    return FocusSessionsCompanion(
+      id: id ?? this.id,
+      day: day ?? this.day,
+      at: at ?? this.at,
+      minutes: minutes ?? this.minutes,
+      taskId: taskId ?? this.taskId,
+      kind: kind ?? this.kind,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (id.present) {
+      map['id'] = Variable<int>(id.value);
+    }
+    if (day.present) {
+      map['day'] = Variable<int>(day.value);
+    }
+    if (at.present) {
+      map['at'] = Variable<DateTime>(at.value);
+    }
+    if (minutes.present) {
+      map['minutes'] = Variable<int>(minutes.value);
+    }
+    if (taskId.present) {
+      map['task_id'] = Variable<int>(taskId.value);
+    }
+    if (kind.present) {
+      map['kind'] = Variable<int>($FocusSessionsTable.$converterkindn.toSql(kind.value));
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('FocusSessionsCompanion(')
+          ..write('id: $id, ')
+          ..write('day: $day, ')
+          ..write('at: $at, ')
+          ..write('minutes: $minutes, ')
+          ..write('taskId: $taskId, ')
+          ..write('kind: $kind')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
@@ -8534,6 +9548,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
   late final $HardDaysTable hardDays = $HardDaysTable(this);
   late final $TimeBlocksTable timeBlocks = $TimeBlocksTable(this);
   late final $BudgetLinesTable budgetLines = $BudgetLinesTable(this);
+  late final $TasksTable tasks = $TasksTable(this);
+  late final $FocusSessionsTable focusSessions = $FocusSessionsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => allSchemaEntities.whereType<TableInfo<Table, Object?>>();
   @override
@@ -8561,6 +9577,8 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     hardDays,
     timeBlocks,
     budgetLines,
+    tasks,
+    focusSessions,
   ];
   @override
   StreamQueryUpdateRules get streamUpdateRules => const StreamQueryUpdateRules([
@@ -8619,6 +9637,14 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     WritePropagation(
       on: TableUpdateQuery.onTableName('funds', limitUpdateKind: UpdateKind.delete),
       result: [TableUpdate('budget_lines', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName('tasks', limitUpdateKind: UpdateKind.delete),
+      result: [TableUpdate('tasks', kind: UpdateKind.delete)],
+    ),
+    WritePropagation(
+      on: TableUpdateQuery.onTableName('tasks', limitUpdateKind: UpdateKind.delete),
+      result: [TableUpdate('focus_sessions', kind: UpdateKind.update)],
     ),
   ]);
 }
@@ -14505,6 +15531,660 @@ typedef $$BudgetLinesTableProcessedTableManager =
       BudgetLine,
       PrefetchHooks Function({bool categoryId, bool fundId})
     >;
+typedef $$TasksTableCreateCompanionBuilder = TasksCompanion Function({
+  Value<int> id,
+  required String title,
+  Value<String?> note,
+  Value<int?> parentId,
+  Value<int?> day,
+  Value<int?> time,
+  Value<bool> remind,
+  Value<int> priority,
+  Value<int?> estimate,
+  Value<BlockKind?> kind,
+  Value<TaskRepeat> repeat,
+  Value<int?> doneDay,
+  Value<DateTime?> doneAt,
+  Value<int> sortOrder,
+  Value<DateTime> createdAt,
+});
+typedef $$TasksTableUpdateCompanionBuilder = TasksCompanion Function({
+  Value<int> id,
+  Value<String> title,
+  Value<String?> note,
+  Value<int?> parentId,
+  Value<int?> day,
+  Value<int?> time,
+  Value<bool> remind,
+  Value<int> priority,
+  Value<int?> estimate,
+  Value<BlockKind?> kind,
+  Value<TaskRepeat> repeat,
+  Value<int?> doneDay,
+  Value<DateTime?> doneAt,
+  Value<int> sortOrder,
+  Value<DateTime> createdAt,
+});
+
+final class $$TasksTableReferences extends BaseReferences<_$AppDatabase, $TasksTable, Task> {
+  $$TasksTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $TasksTable _parentIdTable(_$AppDatabase db) => db.tasks.createAlias('tasks__parent_id__tasks__id');
+
+  $$TasksTableProcessedTableManager? get parentId {
+    final $_column = $_itemColumn<int>('parent_id');
+    if ($_column == null) return null;
+    final manager = $$TasksTableTableManager($_db, $_db.tasks).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_parentIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+
+  static MultiTypedResultKey<$FocusSessionsTable, List<FocusSession>> _focusSessionsRefsTable(_$AppDatabase db) =>
+      MultiTypedResultKey.fromTable(db.focusSessions, aliasName: 'tasks__id__focus_sessions__task_id');
+
+  $$FocusSessionsTableProcessedTableManager get focusSessionsRefs {
+    final manager = $$FocusSessionsTableTableManager(
+      $_db,
+      $_db.focusSessions,
+    ).filter((f) => f.taskId.id.sqlEquals($_itemColumn<int>('id')!));
+
+    final cache = $_typedResult.readTableOrNull(_focusSessionsRefsTable($_db));
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: cache));
+  }
+}
+
+class $$TasksTableFilterComposer extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get title => $composableBuilder(column: $table.title, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get day => $composableBuilder(column: $table.day, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get time => $composableBuilder(column: $table.time, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<bool> get remind => $composableBuilder(column: $table.remind, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get priority => $composableBuilder(column: $table.priority, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get estimate => $composableBuilder(column: $table.estimate, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<BlockKind?, BlockKind, int> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnWithTypeConverterFilters<TaskRepeat, TaskRepeat, int> get repeat =>
+      $composableBuilder(column: $table.repeat, builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  ColumnFilters<int> get doneDay => $composableBuilder(column: $table.doneDay, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get doneAt => $composableBuilder(column: $table.doneAt, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => ColumnFilters(column));
+
+  $$TasksTableFilterComposer get parentId {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TasksTableFilterComposer(
+        $db: $db,
+        $table: $db.tasks,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+
+  Expression<bool> focusSessionsRefs(Expression<bool> Function($$FocusSessionsTableFilterComposer f) f) {
+    final $$FocusSessionsTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.focusSessions,
+      getReferencedColumn: (t) => t.taskId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$FocusSessionsTableFilterComposer(
+        $db: $db,
+        $table: $db.focusSessions,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return f(composer);
+  }
+}
+
+class $$TasksTableOrderingComposer extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get title => $composableBuilder(column: $table.title, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get day => $composableBuilder(column: $table.day, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get time => $composableBuilder(column: $table.time, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<bool> get remind => $composableBuilder(column: $table.remind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get priority => $composableBuilder(column: $table.priority, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get estimate => $composableBuilder(column: $table.estimate, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get kind => $composableBuilder(column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get repeat => $composableBuilder(column: $table.repeat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get doneDay => $composableBuilder(column: $table.doneDay, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get doneAt => $composableBuilder(column: $table.doneAt, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => ColumnOrderings(column));
+
+  $$TasksTableOrderingComposer get parentId {
+    final $$TasksTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TasksTableOrderingComposer(
+        $db: $db,
+        $table: $db.tasks,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$TasksTableAnnotationComposer extends Composer<_$AppDatabase, $TasksTable> {
+  $$TasksTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id => $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<String> get title => $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get note => $composableBuilder(column: $table.note, builder: (column) => column);
+
+  GeneratedColumn<int> get day => $composableBuilder(column: $table.day, builder: (column) => column);
+
+  GeneratedColumn<int> get time => $composableBuilder(column: $table.time, builder: (column) => column);
+
+  GeneratedColumn<bool> get remind => $composableBuilder(column: $table.remind, builder: (column) => column);
+
+  GeneratedColumn<int> get priority => $composableBuilder(column: $table.priority, builder: (column) => column);
+
+  GeneratedColumn<int> get estimate => $composableBuilder(column: $table.estimate, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<BlockKind?, int> get kind => $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<TaskRepeat, int> get repeat => $composableBuilder(column: $table.repeat, builder: (column) => column);
+
+  GeneratedColumn<int> get doneDay => $composableBuilder(column: $table.doneDay, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get doneAt => $composableBuilder(column: $table.doneAt, builder: (column) => column);
+
+  GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get createdAt => $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  $$TasksTableAnnotationComposer get parentId {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.parentId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TasksTableAnnotationComposer(
+        $db: $db,
+        $table: $db.tasks,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+
+  Expression<T> focusSessionsRefs<T extends Object>(Expression<T> Function($$FocusSessionsTableAnnotationComposer a) f) {
+    final $$FocusSessionsTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.id,
+      referencedTable: $db.focusSessions,
+      getReferencedColumn: (t) => t.taskId,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$FocusSessionsTableAnnotationComposer(
+        $db: $db,
+        $table: $db.focusSessions,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return f(composer);
+  }
+}
+
+class $$TasksTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $TasksTable,
+          Task,
+          $$TasksTableFilterComposer,
+          $$TasksTableOrderingComposer,
+          $$TasksTableAnnotationComposer,
+          $$TasksTableCreateCompanionBuilder,
+          $$TasksTableUpdateCompanionBuilder,
+          (Task, $$TasksTableReferences),
+          Task,
+          PrefetchHooks Function({bool parentId, bool focusSessionsRefs})
+        > {
+  $$TasksTableTableManager(_$AppDatabase db, $TasksTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$TasksTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$TasksTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$TasksTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String?> note = const Value.absent(),
+                Value<int?> parentId = const Value.absent(),
+                Value<int?> day = const Value.absent(),
+                Value<int?> time = const Value.absent(),
+                Value<bool> remind = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<int?> estimate = const Value.absent(),
+                Value<BlockKind?> kind = const Value.absent(),
+                Value<TaskRepeat> repeat = const Value.absent(),
+                Value<int?> doneDay = const Value.absent(),
+                Value<DateTime?> doneAt = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => TasksCompanion(
+                id: id,
+                title: title,
+                note: note,
+                parentId: parentId,
+                day: day,
+                time: time,
+                remind: remind,
+                priority: priority,
+                estimate: estimate,
+                kind: kind,
+                repeat: repeat,
+                doneDay: doneDay,
+                doneAt: doneAt,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required String title,
+                Value<String?> note = const Value.absent(),
+                Value<int?> parentId = const Value.absent(),
+                Value<int?> day = const Value.absent(),
+                Value<int?> time = const Value.absent(),
+                Value<bool> remind = const Value.absent(),
+                Value<int> priority = const Value.absent(),
+                Value<int?> estimate = const Value.absent(),
+                Value<BlockKind?> kind = const Value.absent(),
+                Value<TaskRepeat> repeat = const Value.absent(),
+                Value<int?> doneDay = const Value.absent(),
+                Value<DateTime?> doneAt = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<DateTime> createdAt = const Value.absent(),
+              }) => TasksCompanion.insert(
+                id: id,
+                title: title,
+                note: note,
+                parentId: parentId,
+                day: day,
+                time: time,
+                remind: remind,
+                priority: priority,
+                estimate: estimate,
+                kind: kind,
+                repeat: repeat,
+                doneDay: doneDay,
+                doneAt: doneAt,
+                sortOrder: sortOrder,
+                createdAt: createdAt,
+              ),
+          withReferenceMapper: (p0) =>
+              p0.map((e) => (e.readTable<$TasksTable, Task>(table), $$TasksTableReferences(db, table, e))).toList(),
+          prefetchHooksCallback: ({parentId = false, focusSessionsRefs = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [if (focusSessionsRefs) db.focusSessions],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (parentId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.parentId,
+                        referencedTable: $$TasksTableReferences._parentIdTable(db),
+                        referencedColumn: $$TasksTableReferences._parentIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [
+                  if (focusSessionsRefs)
+                    await $_getPrefetchedDataByColumns<Task, $TasksTable, FocusSession, $FocusSessionsTable>(
+                      currentTable: table,
+                      referencedTable: $$TasksTableReferences._focusSessionsRefsTable(db),
+                      managerFromTypedResult: (p0) => $$TasksTableReferences(db, table, p0).focusSessionsRefs,
+                      currentColumn: 'id',
+                      referencedColumn: 'task_id',
+                      typedResults: items,
+                    ),
+                ];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$TasksTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $TasksTable,
+      Task,
+      $$TasksTableFilterComposer,
+      $$TasksTableOrderingComposer,
+      $$TasksTableAnnotationComposer,
+      $$TasksTableCreateCompanionBuilder,
+      $$TasksTableUpdateCompanionBuilder,
+      (Task, $$TasksTableReferences),
+      Task,
+      PrefetchHooks Function({bool parentId, bool focusSessionsRefs})
+    >;
+typedef $$FocusSessionsTableCreateCompanionBuilder = FocusSessionsCompanion Function({
+  Value<int> id,
+  required int day,
+  required DateTime at,
+  required int minutes,
+  Value<int?> taskId,
+  Value<BlockKind?> kind,
+});
+typedef $$FocusSessionsTableUpdateCompanionBuilder = FocusSessionsCompanion Function({
+  Value<int> id,
+  Value<int> day,
+  Value<DateTime> at,
+  Value<int> minutes,
+  Value<int?> taskId,
+  Value<BlockKind?> kind,
+});
+
+final class $$FocusSessionsTableReferences extends BaseReferences<_$AppDatabase, $FocusSessionsTable, FocusSession> {
+  $$FocusSessionsTableReferences(super.$_db, super.$_table, super.$_typedResult);
+
+  static $TasksTable _taskIdTable(_$AppDatabase db) => db.tasks.createAlias('focus_sessions__task_id__tasks__id');
+
+  $$TasksTableProcessedTableManager? get taskId {
+    final $_column = $_itemColumn<int>('task_id');
+    if ($_column == null) return null;
+    final manager = $$TasksTableTableManager($_db, $_db.tasks).filter((f) => f.id.sqlEquals($_column));
+    final item = $_typedResult.readTableOrNull(_taskIdTable($_db));
+    if (item == null) return manager;
+    return ProcessedTableManager(manager.$state.copyWith(prefetchedData: [item]));
+  }
+}
+
+class $$FocusSessionsTableFilterComposer extends Composer<_$AppDatabase, $FocusSessionsTable> {
+  $$FocusSessionsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get day => $composableBuilder(column: $table.day, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<DateTime> get at => $composableBuilder(column: $table.at, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get minutes => $composableBuilder(column: $table.minutes, builder: (column) => ColumnFilters(column));
+
+  ColumnWithTypeConverterFilters<BlockKind?, BlockKind, int> get kind =>
+      $composableBuilder(column: $table.kind, builder: (column) => ColumnWithTypeConverterFilters(column));
+
+  $$TasksTableFilterComposer get taskId {
+    final $$TasksTableFilterComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TasksTableFilterComposer(
+        $db: $db,
+        $table: $db.tasks,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$FocusSessionsTableOrderingComposer extends Composer<_$AppDatabase, $FocusSessionsTable> {
+  $$FocusSessionsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<int> get id => $composableBuilder(column: $table.id, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get day => $composableBuilder(column: $table.day, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<DateTime> get at => $composableBuilder(column: $table.at, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get minutes => $composableBuilder(column: $table.minutes, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get kind => $composableBuilder(column: $table.kind, builder: (column) => ColumnOrderings(column));
+
+  $$TasksTableOrderingComposer get taskId {
+    final $$TasksTableOrderingComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TasksTableOrderingComposer(
+        $db: $db,
+        $table: $db.tasks,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$FocusSessionsTableAnnotationComposer extends Composer<_$AppDatabase, $FocusSessionsTable> {
+  $$FocusSessionsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<int> get id => $composableBuilder(column: $table.id, builder: (column) => column);
+
+  GeneratedColumn<int> get day => $composableBuilder(column: $table.day, builder: (column) => column);
+
+  GeneratedColumn<DateTime> get at => $composableBuilder(column: $table.at, builder: (column) => column);
+
+  GeneratedColumn<int> get minutes => $composableBuilder(column: $table.minutes, builder: (column) => column);
+
+  GeneratedColumnWithTypeConverter<BlockKind?, int> get kind => $composableBuilder(column: $table.kind, builder: (column) => column);
+
+  $$TasksTableAnnotationComposer get taskId {
+    final $$TasksTableAnnotationComposer composer = $composerBuilder(
+      composer: this,
+      getCurrentColumn: (t) => t.taskId,
+      referencedTable: $db.tasks,
+      getReferencedColumn: (t) => t.id,
+      builder: (joinBuilder, {$addJoinBuilderToRootComposer, $removeJoinBuilderFromRootComposer}) => $$TasksTableAnnotationComposer(
+        $db: $db,
+        $table: $db.tasks,
+        $addJoinBuilderToRootComposer: $addJoinBuilderToRootComposer,
+        joinBuilder: joinBuilder,
+        $removeJoinBuilderFromRootComposer: $removeJoinBuilderFromRootComposer,
+      ),
+    );
+    return composer;
+  }
+}
+
+class $$FocusSessionsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $FocusSessionsTable,
+          FocusSession,
+          $$FocusSessionsTableFilterComposer,
+          $$FocusSessionsTableOrderingComposer,
+          $$FocusSessionsTableAnnotationComposer,
+          $$FocusSessionsTableCreateCompanionBuilder,
+          $$FocusSessionsTableUpdateCompanionBuilder,
+          (FocusSession, $$FocusSessionsTableReferences),
+          FocusSession,
+          PrefetchHooks Function({bool taskId})
+        > {
+  $$FocusSessionsTableTableManager(_$AppDatabase db, $FocusSessionsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () => $$FocusSessionsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () => $$FocusSessionsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () => $$FocusSessionsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            Value<int> day = const Value.absent(),
+            Value<DateTime> at = const Value.absent(),
+            Value<int> minutes = const Value.absent(),
+            Value<int?> taskId = const Value.absent(),
+            Value<BlockKind?> kind = const Value.absent(),
+          }) => FocusSessionsCompanion(id: id, day: day, at: at, minutes: minutes, taskId: taskId, kind: kind),
+          createCompanionCallback: ({
+            Value<int> id = const Value.absent(),
+            required int day,
+            required DateTime at,
+            required int minutes,
+            Value<int?> taskId = const Value.absent(),
+            Value<BlockKind?> kind = const Value.absent(),
+          }) => FocusSessionsCompanion.insert(id: id, day: day, at: at, minutes: minutes, taskId: taskId, kind: kind),
+          withReferenceMapper: (p0) =>
+              p0.map((e) => (e.readTable<$FocusSessionsTable, FocusSession>(table), $$FocusSessionsTableReferences(db, table, e))).toList(),
+          prefetchHooksCallback: ({taskId = false}) {
+            return PrefetchHooks(
+              db: db,
+              explicitlyWatchedTables: [],
+              addJoins:
+                  <
+                    T extends TableManagerState<
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic,
+                      dynamic
+                    >
+                  >(state) {
+                    if (taskId) {
+                      state = state.withJoin(
+                        currentTable: table,
+                        currentColumn: table.taskId,
+                        referencedTable: $$FocusSessionsTableReferences._taskIdTable(db),
+                        referencedColumn: $$FocusSessionsTableReferences._taskIdTable(db).id,
+                      ) as T;
+                    }
+
+                    return state;
+                  },
+              getPrefetchedDataCallback: (items) async {
+                return [];
+              },
+            );
+          },
+        ),
+      );
+}
+
+typedef $$FocusSessionsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $FocusSessionsTable,
+      FocusSession,
+      $$FocusSessionsTableFilterComposer,
+      $$FocusSessionsTableOrderingComposer,
+      $$FocusSessionsTableAnnotationComposer,
+      $$FocusSessionsTableCreateCompanionBuilder,
+      $$FocusSessionsTableUpdateCompanionBuilder,
+      (FocusSession, $$FocusSessionsTableReferences),
+      FocusSession,
+      PrefetchHooks Function({bool taskId})
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -14532,4 +16212,6 @@ class $AppDatabaseManager {
   $$HardDaysTableTableManager get hardDays => $$HardDaysTableTableManager(_db, _db.hardDays);
   $$TimeBlocksTableTableManager get timeBlocks => $$TimeBlocksTableTableManager(_db, _db.timeBlocks);
   $$BudgetLinesTableTableManager get budgetLines => $$BudgetLinesTableTableManager(_db, _db.budgetLines);
+  $$TasksTableTableManager get tasks => $$TasksTableTableManager(_db, _db.tasks);
+  $$FocusSessionsTableTableManager get focusSessions => $$FocusSessionsTableTableManager(_db, _db.focusSessions);
 }
