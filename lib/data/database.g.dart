@@ -4275,8 +4275,26 @@ class $ProgramExercisesTable extends ProgramExercises with TableInfo<$ProgramExe
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _muscleMeta = const VerificationMeta('muscle');
   @override
-  List<GeneratedColumn> get $columns => [id, programId, name, sets, repsMin, repsMax, unit, note, sortOrder];
+  late final GeneratedColumn<String> muscle = GeneratedColumn<String>(
+    'muscle',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _restSecMeta = const VerificationMeta('restSec');
+  @override
+  late final GeneratedColumn<int> restSec = GeneratedColumn<int>(
+    'rest_sec',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, programId, name, sets, repsMin, repsMax, unit, note, sortOrder, muscle, restSec];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4317,6 +4335,12 @@ class $ProgramExercisesTable extends ProgramExercises with TableInfo<$ProgramExe
     if (data.containsKey('sort_order')) {
       context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
+    if (data.containsKey('muscle')) {
+      context.handle(_muscleMeta, muscle.isAcceptableOrUnknown(data['muscle']!, _muscleMeta));
+    }
+    if (data.containsKey('rest_sec')) {
+      context.handle(_restSecMeta, restSec.isAcceptableOrUnknown(data['rest_sec']!, _restSecMeta));
+    }
     return context;
   }
 
@@ -4335,6 +4359,8 @@ class $ProgramExercisesTable extends ProgramExercises with TableInfo<$ProgramExe
       unit: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}unit'])!,
       note: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}note']),
       sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
+      muscle: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}muscle']),
+      restSec: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}rest_sec']),
     );
   }
 
@@ -4356,6 +4382,12 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
   final String unit;
   final String? note;
   final int sortOrder;
+
+  /// Основная мышечная группа: ключ из exercise_catalog.dart. null: берётся из каталога по названию.
+  final String? muscle;
+
+  /// Отдых между подходами в секундах. null: из каталога или 90 секунд.
+  final int? restSec;
   const ProgramExercise({
     required this.id,
     required this.programId,
@@ -4366,6 +4398,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
     required this.unit,
     this.note,
     required this.sortOrder,
+    this.muscle,
+    this.restSec,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4381,6 +4415,12 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
       map['note'] = Variable<String>(note);
     }
     map['sort_order'] = Variable<int>(sortOrder);
+    if (!nullToAbsent || muscle != null) {
+      map['muscle'] = Variable<String>(muscle);
+    }
+    if (!nullToAbsent || restSec != null) {
+      map['rest_sec'] = Variable<int>(restSec);
+    }
     return map;
   }
 
@@ -4395,6 +4435,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
       unit: Value(unit),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       sortOrder: Value(sortOrder),
+      muscle: muscle == null && nullToAbsent ? const Value.absent() : Value(muscle),
+      restSec: restSec == null && nullToAbsent ? const Value.absent() : Value(restSec),
     );
   }
 
@@ -4410,6 +4452,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
       unit: serializer.fromJson<String>(json['unit']),
       note: serializer.fromJson<String?>(json['note']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
+      muscle: serializer.fromJson<String?>(json['muscle']),
+      restSec: serializer.fromJson<int?>(json['restSec']),
     );
   }
   @override
@@ -4425,6 +4469,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
       'unit': serializer.toJson<String>(unit),
       'note': serializer.toJson<String?>(note),
       'sortOrder': serializer.toJson<int>(sortOrder),
+      'muscle': serializer.toJson<String?>(muscle),
+      'restSec': serializer.toJson<int?>(restSec),
     };
   }
 
@@ -4438,6 +4484,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
     String? unit,
     Value<String?> note = const Value.absent(),
     int? sortOrder,
+    Value<String?> muscle = const Value.absent(),
+    Value<int?> restSec = const Value.absent(),
   }) => ProgramExercise(
     id: id ?? this.id,
     programId: programId ?? this.programId,
@@ -4448,6 +4496,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
     unit: unit ?? this.unit,
     note: note.present ? note.value : this.note,
     sortOrder: sortOrder ?? this.sortOrder,
+    muscle: muscle.present ? muscle.value : this.muscle,
+    restSec: restSec.present ? restSec.value : this.restSec,
   );
   ProgramExercise copyWithCompanion(ProgramExercisesCompanion data) {
     return ProgramExercise(
@@ -4460,6 +4510,8 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
       unit: data.unit.present ? data.unit.value : this.unit,
       note: data.note.present ? data.note.value : this.note,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
+      muscle: data.muscle.present ? data.muscle.value : this.muscle,
+      restSec: data.restSec.present ? data.restSec.value : this.restSec,
     );
   }
 
@@ -4474,13 +4526,15 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
           ..write('repsMax: $repsMax, ')
           ..write('unit: $unit, ')
           ..write('note: $note, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('muscle: $muscle, ')
+          ..write('restSec: $restSec')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, programId, name, sets, repsMin, repsMax, unit, note, sortOrder);
+  int get hashCode => Object.hash(id, programId, name, sets, repsMin, repsMax, unit, note, sortOrder, muscle, restSec);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4493,7 +4547,9 @@ class ProgramExercise extends DataClass implements Insertable<ProgramExercise> {
           other.repsMax == this.repsMax &&
           other.unit == this.unit &&
           other.note == this.note &&
-          other.sortOrder == this.sortOrder);
+          other.sortOrder == this.sortOrder &&
+          other.muscle == this.muscle &&
+          other.restSec == this.restSec);
 }
 
 class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
@@ -4506,6 +4562,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
   final Value<String> unit;
   final Value<String?> note;
   final Value<int> sortOrder;
+  final Value<String?> muscle;
+  final Value<int?> restSec;
   const ProgramExercisesCompanion({
     this.id = const Value.absent(),
     this.programId = const Value.absent(),
@@ -4516,6 +4574,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
     this.unit = const Value.absent(),
     this.note = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.muscle = const Value.absent(),
+    this.restSec = const Value.absent(),
   });
   ProgramExercisesCompanion.insert({
     this.id = const Value.absent(),
@@ -4527,6 +4587,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
     this.unit = const Value.absent(),
     this.note = const Value.absent(),
     this.sortOrder = const Value.absent(),
+    this.muscle = const Value.absent(),
+    this.restSec = const Value.absent(),
   }) : programId = Value(programId),
        name = Value(name);
   static Insertable<ProgramExercise> custom({
@@ -4539,6 +4601,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
     Expression<String>? unit,
     Expression<String>? note,
     Expression<int>? sortOrder,
+    Expression<String>? muscle,
+    Expression<int>? restSec,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4550,6 +4614,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
       if (unit != null) 'unit': unit,
       if (note != null) 'note': note,
       if (sortOrder != null) 'sort_order': sortOrder,
+      if (muscle != null) 'muscle': muscle,
+      if (restSec != null) 'rest_sec': restSec,
     });
   }
 
@@ -4563,6 +4629,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
     Value<String>? unit,
     Value<String?>? note,
     Value<int>? sortOrder,
+    Value<String?>? muscle,
+    Value<int?>? restSec,
   }) {
     return ProgramExercisesCompanion(
       id: id ?? this.id,
@@ -4574,6 +4642,8 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
       unit: unit ?? this.unit,
       note: note ?? this.note,
       sortOrder: sortOrder ?? this.sortOrder,
+      muscle: muscle ?? this.muscle,
+      restSec: restSec ?? this.restSec,
     );
   }
 
@@ -4607,6 +4677,12 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
+    if (muscle.present) {
+      map['muscle'] = Variable<String>(muscle.value);
+    }
+    if (restSec.present) {
+      map['rest_sec'] = Variable<int>(restSec.value);
+    }
     return map;
   }
 
@@ -4621,7 +4697,9 @@ class ProgramExercisesCompanion extends UpdateCompanion<ProgramExercise> {
           ..write('repsMax: $repsMax, ')
           ..write('unit: $unit, ')
           ..write('note: $note, ')
-          ..write('sortOrder: $sortOrder')
+          ..write('sortOrder: $sortOrder, ')
+          ..write('muscle: $muscle, ')
+          ..write('restSec: $restSec')
           ..write(')'))
         .toString();
   }
@@ -4695,8 +4773,26 @@ class $WorkoutSessionsTable extends WorkoutSessions with TableInfo<$WorkoutSessi
     defaultConstraints: GeneratedColumn.constraintIsAlways('CHECK ("minimum" IN (0, 1))'),
     defaultValue: const Constant(false),
   );
+  static const VerificationMeta _durationSecMeta = const VerificationMeta('durationSec');
   @override
-  List<GeneratedColumn> get $columns => [id, programId, programName, day, at, note, minimum];
+  late final GeneratedColumn<int> durationSec = GeneratedColumn<int>(
+    'duration_sec',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _feelMeta = const VerificationMeta('feel');
+  @override
+  late final GeneratedColumn<int> feel = GeneratedColumn<int>(
+    'feel',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [id, programId, programName, day, at, note, minimum, durationSec, feel];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -4731,6 +4827,12 @@ class $WorkoutSessionsTable extends WorkoutSessions with TableInfo<$WorkoutSessi
     if (data.containsKey('minimum')) {
       context.handle(_minimumMeta, minimum.isAcceptableOrUnknown(data['minimum']!, _minimumMeta));
     }
+    if (data.containsKey('duration_sec')) {
+      context.handle(_durationSecMeta, durationSec.isAcceptableOrUnknown(data['duration_sec']!, _durationSecMeta));
+    }
+    if (data.containsKey('feel')) {
+      context.handle(_feelMeta, feel.isAcceptableOrUnknown(data['feel']!, _feelMeta));
+    }
     return context;
   }
 
@@ -4747,6 +4849,8 @@ class $WorkoutSessionsTable extends WorkoutSessions with TableInfo<$WorkoutSessi
       at: attachedDatabase.typeMapping.read(DriftSqlType.dateTime, data['${effectivePrefix}at'])!,
       note: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}note']),
       minimum: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}minimum'])!,
+      durationSec: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}duration_sec']),
+      feel: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}feel']),
     );
   }
 
@@ -4766,6 +4870,12 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
 
   /// Сделано меньше плана: облегчённая тренировка.
   final bool minimum;
+
+  /// Сколько длилась тренировка, в секундах.
+  final int? durationSec;
+
+  /// Самочувствие после тренировки от 1 (тяжело) до 5 (отлично).
+  final int? feel;
   const WorkoutSession({
     required this.id,
     this.programId,
@@ -4774,6 +4884,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
     required this.at,
     this.note,
     required this.minimum,
+    this.durationSec,
+    this.feel,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -4789,6 +4901,12 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       map['note'] = Variable<String>(note);
     }
     map['minimum'] = Variable<bool>(minimum);
+    if (!nullToAbsent || durationSec != null) {
+      map['duration_sec'] = Variable<int>(durationSec);
+    }
+    if (!nullToAbsent || feel != null) {
+      map['feel'] = Variable<int>(feel);
+    }
     return map;
   }
 
@@ -4801,6 +4919,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       at: Value(at),
       note: note == null && nullToAbsent ? const Value.absent() : Value(note),
       minimum: Value(minimum),
+      durationSec: durationSec == null && nullToAbsent ? const Value.absent() : Value(durationSec),
+      feel: feel == null && nullToAbsent ? const Value.absent() : Value(feel),
     );
   }
 
@@ -4814,6 +4934,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       at: serializer.fromJson<DateTime>(json['at']),
       note: serializer.fromJson<String?>(json['note']),
       minimum: serializer.fromJson<bool>(json['minimum']),
+      durationSec: serializer.fromJson<int?>(json['durationSec']),
+      feel: serializer.fromJson<int?>(json['feel']),
     );
   }
   @override
@@ -4827,6 +4949,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       'at': serializer.toJson<DateTime>(at),
       'note': serializer.toJson<String?>(note),
       'minimum': serializer.toJson<bool>(minimum),
+      'durationSec': serializer.toJson<int?>(durationSec),
+      'feel': serializer.toJson<int?>(feel),
     };
   }
 
@@ -4838,6 +4962,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
     DateTime? at,
     Value<String?> note = const Value.absent(),
     bool? minimum,
+    Value<int?> durationSec = const Value.absent(),
+    Value<int?> feel = const Value.absent(),
   }) => WorkoutSession(
     id: id ?? this.id,
     programId: programId.present ? programId.value : this.programId,
@@ -4846,6 +4972,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
     at: at ?? this.at,
     note: note.present ? note.value : this.note,
     minimum: minimum ?? this.minimum,
+    durationSec: durationSec.present ? durationSec.value : this.durationSec,
+    feel: feel.present ? feel.value : this.feel,
   );
   WorkoutSession copyWithCompanion(WorkoutSessionsCompanion data) {
     return WorkoutSession(
@@ -4856,6 +4984,8 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
       at: data.at.present ? data.at.value : this.at,
       note: data.note.present ? data.note.value : this.note,
       minimum: data.minimum.present ? data.minimum.value : this.minimum,
+      durationSec: data.durationSec.present ? data.durationSec.value : this.durationSec,
+      feel: data.feel.present ? data.feel.value : this.feel,
     );
   }
 
@@ -4868,13 +4998,15 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
           ..write('day: $day, ')
           ..write('at: $at, ')
           ..write('note: $note, ')
-          ..write('minimum: $minimum')
+          ..write('minimum: $minimum, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('feel: $feel')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, programId, programName, day, at, note, minimum);
+  int get hashCode => Object.hash(id, programId, programName, day, at, note, minimum, durationSec, feel);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -4885,7 +5017,9 @@ class WorkoutSession extends DataClass implements Insertable<WorkoutSession> {
           other.day == this.day &&
           other.at == this.at &&
           other.note == this.note &&
-          other.minimum == this.minimum);
+          other.minimum == this.minimum &&
+          other.durationSec == this.durationSec &&
+          other.feel == this.feel);
 }
 
 class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
@@ -4896,6 +5030,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
   final Value<DateTime> at;
   final Value<String?> note;
   final Value<bool> minimum;
+  final Value<int?> durationSec;
+  final Value<int?> feel;
   const WorkoutSessionsCompanion({
     this.id = const Value.absent(),
     this.programId = const Value.absent(),
@@ -4904,6 +5040,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     this.at = const Value.absent(),
     this.note = const Value.absent(),
     this.minimum = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.feel = const Value.absent(),
   });
   WorkoutSessionsCompanion.insert({
     this.id = const Value.absent(),
@@ -4913,6 +5051,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     this.at = const Value.absent(),
     this.note = const Value.absent(),
     this.minimum = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.feel = const Value.absent(),
   }) : programName = Value(programName),
        day = Value(day);
   static Insertable<WorkoutSession> custom({
@@ -4923,6 +5063,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     Expression<DateTime>? at,
     Expression<String>? note,
     Expression<bool>? minimum,
+    Expression<int>? durationSec,
+    Expression<int>? feel,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -4932,6 +5074,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
       if (at != null) 'at': at,
       if (note != null) 'note': note,
       if (minimum != null) 'minimum': minimum,
+      if (durationSec != null) 'duration_sec': durationSec,
+      if (feel != null) 'feel': feel,
     });
   }
 
@@ -4943,6 +5087,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     Value<DateTime>? at,
     Value<String?>? note,
     Value<bool>? minimum,
+    Value<int?>? durationSec,
+    Value<int?>? feel,
   }) {
     return WorkoutSessionsCompanion(
       id: id ?? this.id,
@@ -4952,6 +5098,8 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
       at: at ?? this.at,
       note: note ?? this.note,
       minimum: minimum ?? this.minimum,
+      durationSec: durationSec ?? this.durationSec,
+      feel: feel ?? this.feel,
     );
   }
 
@@ -4979,6 +5127,12 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
     if (minimum.present) {
       map['minimum'] = Variable<bool>(minimum.value);
     }
+    if (durationSec.present) {
+      map['duration_sec'] = Variable<int>(durationSec.value);
+    }
+    if (feel.present) {
+      map['feel'] = Variable<int>(feel.value);
+    }
     return map;
   }
 
@@ -4991,7 +5145,9 @@ class WorkoutSessionsCompanion extends UpdateCompanion<WorkoutSession> {
           ..write('day: $day, ')
           ..write('at: $at, ')
           ..write('note: $note, ')
-          ..write('minimum: $minimum')
+          ..write('minimum: $minimum, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('feel: $feel')
           ..write(')'))
         .toString();
   }
@@ -11719,6 +11875,8 @@ typedef $$ProgramExercisesTableCreateCompanionBuilder = ProgramExercisesCompanio
   Value<String> unit,
   Value<String?> note,
   Value<int> sortOrder,
+  Value<String?> muscle,
+  Value<int?> restSec,
 });
 typedef $$ProgramExercisesTableUpdateCompanionBuilder = ProgramExercisesCompanion Function({
   Value<int> id,
@@ -11730,6 +11888,8 @@ typedef $$ProgramExercisesTableUpdateCompanionBuilder = ProgramExercisesCompanio
   Value<String> unit,
   Value<String?> note,
   Value<int> sortOrder,
+  Value<String?> muscle,
+  Value<int?> restSec,
 });
 
 final class $$ProgramExercisesTableReferences extends BaseReferences<_$AppDatabase, $ProgramExercisesTable, ProgramExercise> {
@@ -11783,6 +11943,10 @@ class $$ProgramExercisesTableFilterComposer extends Composer<_$AppDatabase, $Pro
   ColumnFilters<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<String> get muscle => $composableBuilder(column: $table.muscle, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get restSec => $composableBuilder(column: $table.restSec, builder: (column) => ColumnFilters(column));
 
   $$ProgramsTableFilterComposer get programId {
     final $$ProgramsTableFilterComposer composer = $composerBuilder(
@@ -11843,6 +12007,10 @@ class $$ProgramExercisesTableOrderingComposer extends Composer<_$AppDatabase, $P
 
   ColumnOrderings<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<String> get muscle => $composableBuilder(column: $table.muscle, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get restSec => $composableBuilder(column: $table.restSec, builder: (column) => ColumnOrderings(column));
+
   $$ProgramsTableOrderingComposer get programId {
     final $$ProgramsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -11884,6 +12052,10 @@ class $$ProgramExercisesTableAnnotationComposer extends Composer<_$AppDatabase, 
   GeneratedColumn<String> get note => $composableBuilder(column: $table.note, builder: (column) => column);
 
   GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
+
+  GeneratedColumn<String> get muscle => $composableBuilder(column: $table.muscle, builder: (column) => column);
+
+  GeneratedColumn<int> get restSec => $composableBuilder(column: $table.restSec, builder: (column) => column);
 
   $$ProgramsTableAnnotationComposer get programId {
     final $$ProgramsTableAnnotationComposer composer = $composerBuilder(
@@ -11954,6 +12126,8 @@ class $$ProgramExercisesTableTableManager
                 Value<String> unit = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> muscle = const Value.absent(),
+                Value<int?> restSec = const Value.absent(),
               }) => ProgramExercisesCompanion(
                 id: id,
                 programId: programId,
@@ -11964,6 +12138,8 @@ class $$ProgramExercisesTableTableManager
                 unit: unit,
                 note: note,
                 sortOrder: sortOrder,
+                muscle: muscle,
+                restSec: restSec,
               ),
           createCompanionCallback:
               ({
@@ -11976,6 +12152,8 @@ class $$ProgramExercisesTableTableManager
                 Value<String> unit = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
+                Value<String?> muscle = const Value.absent(),
+                Value<int?> restSec = const Value.absent(),
               }) => ProgramExercisesCompanion.insert(
                 id: id,
                 programId: programId,
@@ -11986,6 +12164,8 @@ class $$ProgramExercisesTableTableManager
                 unit: unit,
                 note: note,
                 sortOrder: sortOrder,
+                muscle: muscle,
+                restSec: restSec,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable<$ProgramExercisesTable, ProgramExercise>(table), $$ProgramExercisesTableReferences(db, table, e)))
@@ -12062,6 +12242,8 @@ typedef $$WorkoutSessionsTableCreateCompanionBuilder = WorkoutSessionsCompanion 
   Value<DateTime> at,
   Value<String?> note,
   Value<bool> minimum,
+  Value<int?> durationSec,
+  Value<int?> feel,
 });
 typedef $$WorkoutSessionsTableUpdateCompanionBuilder = WorkoutSessionsCompanion Function({
   Value<int> id,
@@ -12071,6 +12253,8 @@ typedef $$WorkoutSessionsTableUpdateCompanionBuilder = WorkoutSessionsCompanion 
   Value<DateTime> at,
   Value<String?> note,
   Value<bool> minimum,
+  Value<int?> durationSec,
+  Value<int?> feel,
 });
 
 final class $$WorkoutSessionsTableReferences extends BaseReferences<_$AppDatabase, $WorkoutSessionsTable, WorkoutSession> {
@@ -12120,6 +12304,10 @@ class $$WorkoutSessionsTableFilterComposer extends Composer<_$AppDatabase, $Work
   ColumnFilters<String> get note => $composableBuilder(column: $table.note, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<bool> get minimum => $composableBuilder(column: $table.minimum, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get durationSec => $composableBuilder(column: $table.durationSec, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get feel => $composableBuilder(column: $table.feel, builder: (column) => ColumnFilters(column));
 
   $$ProgramsTableFilterComposer get programId {
     final $$ProgramsTableFilterComposer composer = $composerBuilder(
@@ -12176,6 +12364,10 @@ class $$WorkoutSessionsTableOrderingComposer extends Composer<_$AppDatabase, $Wo
 
   ColumnOrderings<bool> get minimum => $composableBuilder(column: $table.minimum, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<int> get durationSec => $composableBuilder(column: $table.durationSec, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get feel => $composableBuilder(column: $table.feel, builder: (column) => ColumnOrderings(column));
+
   $$ProgramsTableOrderingComposer get programId {
     final $$ProgramsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -12213,6 +12405,10 @@ class $$WorkoutSessionsTableAnnotationComposer extends Composer<_$AppDatabase, $
   GeneratedColumn<String> get note => $composableBuilder(column: $table.note, builder: (column) => column);
 
   GeneratedColumn<bool> get minimum => $composableBuilder(column: $table.minimum, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSec => $composableBuilder(column: $table.durationSec, builder: (column) => column);
+
+  GeneratedColumn<int> get feel => $composableBuilder(column: $table.feel, builder: (column) => column);
 
   $$ProgramsTableAnnotationComposer get programId {
     final $$ProgramsTableAnnotationComposer composer = $composerBuilder(
@@ -12281,6 +12477,8 @@ class $$WorkoutSessionsTableTableManager
                 Value<DateTime> at = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<bool> minimum = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<int?> feel = const Value.absent(),
               }) => WorkoutSessionsCompanion(
                 id: id,
                 programId: programId,
@@ -12289,6 +12487,8 @@ class $$WorkoutSessionsTableTableManager
                 at: at,
                 note: note,
                 minimum: minimum,
+                durationSec: durationSec,
+                feel: feel,
               ),
           createCompanionCallback:
               ({
@@ -12299,6 +12499,8 @@ class $$WorkoutSessionsTableTableManager
                 Value<DateTime> at = const Value.absent(),
                 Value<String?> note = const Value.absent(),
                 Value<bool> minimum = const Value.absent(),
+                Value<int?> durationSec = const Value.absent(),
+                Value<int?> feel = const Value.absent(),
               }) => WorkoutSessionsCompanion.insert(
                 id: id,
                 programId: programId,
@@ -12307,6 +12509,8 @@ class $$WorkoutSessionsTableTableManager
                 at: at,
                 note: note,
                 minimum: minimum,
+                durationSec: durationSec,
+                feel: feel,
               ),
           withReferenceMapper: (p0) => p0
               .map((e) => (e.readTable<$WorkoutSessionsTable, WorkoutSession>(table), $$WorkoutSessionsTableReferences(db, table, e)))

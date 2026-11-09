@@ -224,6 +224,12 @@ class ProgramExercises extends Table {
   TextColumn get unit => text().withDefault(const Constant('повт'))();
   TextColumn get note => text().nullable()();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// Основная мышечная группа: ключ из exercise_catalog.dart. null: берётся из каталога по названию.
+  TextColumn get muscle => text().nullable()();
+
+  /// Отдых между подходами в секундах. null: из каталога или 90 секунд.
+  IntColumn get restSec => integer().nullable()();
 }
 
 class WorkoutSessions extends Table {
@@ -236,6 +242,12 @@ class WorkoutSessions extends Table {
 
   /// Сделано меньше плана: облегчённая тренировка.
   BoolColumn get minimum => boolean().withDefault(const Constant(false))();
+
+  /// Сколько длилась тренировка, в секундах.
+  IntColumn get durationSec => integer().nullable()();
+
+  /// Самочувствие после тренировки от 1 (тяжело) до 5 (отлично).
+  IntColumn get feel => integer().nullable()();
 }
 
 class SessionSets extends Table {
@@ -397,7 +409,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -438,11 +450,24 @@ class AppDatabase extends _$AppDatabase {
         await add(meals, meals.slot);
         await fillTemplateMacros();
       }
+      if (from < 5) {
+        // Версия 5: спорт. Мышцы и отдых у упражнений, длительность и самочувствие у тренировки.
+        await _addColumnIfMissing(m, programExercises, programExercises.muscle);
+        await _addColumnIfMissing(m, programExercises, programExercises.restSec);
+        await _addColumnIfMissing(m, workoutSessions, workoutSessions.durationSec);
+        await _addColumnIfMissing(m, workoutSessions, workoutSessions.feel);
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  /// Добавить столбец, только если его ещё нет: шаги миграций из параллельных веток можно применять в любом порядке.
+  Future<void> _addColumnIfMissing(Migrator m, TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
+    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+    if (!cols.any((c) => c.read<String>('name') == column.name)) await m.addColumn(table, column);
+  }
 
   /// Раньше тяжёлый день хранился одной настройкой и забывался на следующий день. Переносим его в таблицу.
   Future<void> moveLegacyHardDay() async {
