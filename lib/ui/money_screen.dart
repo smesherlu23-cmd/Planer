@@ -5,8 +5,10 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/icon_keys.dart';
 import '../data/queries.dart';
+import '../logic/budget.dart';
 import '../logic/calc.dart';
 import '../logic/values.dart';
+import 'budget_screen.dart';
 import 'common.dart';
 import 'icons.dart';
 import 'theme.dart';
@@ -50,6 +52,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
           db.watchFundValues(),
           db.watchAllFundMoves(),
           (db.select(db.categories)).watch(),
+          db.watchBudget(monthKey(_month)),
         ],
         builder: (context, v) {
           final txs = v[0] as List<Transaction>;
@@ -58,6 +61,17 @@ class _MoneyScreenState extends State<MoneyScreen> {
           final values = v[3] as Map<int, double>;
           final moves = v[4] as List<FundMove>;
           final allCats = {for (final c in v[5] as List<Category>) c.id: c};
+          final budget = buildBudget(
+            lines: v[6] as List<BudgetLine>,
+            categories: allCats.values.toList(),
+            funds: funds,
+            transactions: txs,
+            moves: [
+              for (final m in moves)
+                if (m.day >= _from && m.day <= _to) m,
+            ],
+          );
+          final daysLeft = daysLeftInMonth(_month, DateTime.now());
           final expenses = txs.where((t) => !t.isIncome).fold<double>(0, (a, t) => a + t.amount);
           final income = txs.where((t) => t.isIncome).fold<double>(0, (a, t) => a + t.amount);
           final byCat = <int?, double>{};
@@ -76,7 +90,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
             padding: const EdgeInsets.only(bottom: 110),
             children: [
               PageHeader(
-                overline: 'бюджет и накопления',
+                overline: 'бюджет на месяц',
                 title: 'Деньги',
                 actions: [
                   IconButton(
@@ -105,30 +119,64 @@ class _MoneyScreenState extends State<MoneyScreen> {
                       ],
                     ),
                     const SizedBox(height: 10),
-                    const Text(
-                      'Потрачено',
-                      style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
-                    ),
-                    FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerLeft,
-                      child: Text(formatMoney(expenses), style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
-                    ),
+                    if (budget.planned && budget.expensePlan > 0) ...[
+                      Text(
+                        budget.leftToSpend >= 0 ? 'Можно ещё потратить' : 'Перерасход',
+                        style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(
+                          formatMoney(budget.leftToSpend.abs()),
+                          style: theme.textTheme.displaySmall?.copyWith(color: Colors.white),
+                        ),
+                      ),
+                      if (budget.leftToSpend > 0 && daysLeft > 0)
+                        Text(
+                          'это ${formatMoney(budget.leftToSpend / daysLeft)} в день до конца месяца',
+                          style: const TextStyle(color: Colors.white),
+                        ),
+                    ] else ...[
+                      const Text(
+                        'Потрачено',
+                        style: TextStyle(color: Colors.white70, fontWeight: FontWeight.w500),
+                      ),
+                      FittedBox(
+                        fit: BoxFit.scaleDown,
+                        alignment: Alignment.centerLeft,
+                        child: Text(formatMoney(expenses), style: theme.textTheme.displaySmall?.copyWith(color: Colors.white)),
+                      ),
+                    ],
                     const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Expanded(
-                          child: HeroStat(label: 'Доходы', value: '+${formatMoney(income)}'),
-                        ),
-                        const SizedBox(width: 10),
-                        Expanded(
-                          child: HeroStat(label: 'Разница', value: '${diff < 0 ? '−' : '+'}${formatMoney(diff.abs())}'),
-                        ),
-                      ],
-                    ),
+                    if (budget.planned)
+                      Row(
+                        children: [
+                          Expanded(
+                            child: HeroStat(label: 'Доход', value: '${formatMoney(income)} из ${formatMoney(budget.incomePlan)}'),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: HeroStat(label: 'Отложено', value: '${formatMoney(budget.saveFact)} из ${formatMoney(budget.savePlan)}'),
+                          ),
+                        ],
+                      )
+                    else
+                      Row(
+                        children: [
+                          Expanded(
+                            child: HeroStat(label: 'Доходы', value: '+${formatMoney(income)}'),
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: HeroStat(label: 'Разница', value: '${diff < 0 ? '−' : '+'}${formatMoney(diff.abs())}'),
+                          ),
+                        ],
+                      ),
                   ],
                 ),
               ),
+              if (budget.planned) BudgetSections(budget: budget, month: _month) else NoBudgetCard(month: _month),
               SectionTitle(
                 'Копилки и долги',
                 trailing: IconButton(
@@ -149,7 +197,7 @@ class _MoneyScreenState extends State<MoneyScreen> {
                   ),
                 ),
               for (final f in funds) _FundCard(fund: f, value: values[f.id] ?? fundValue(f, 0), recent: recentMonthlyPace(moves, f.id)),
-              if (catRows.isNotEmpty || limited.isNotEmpty) ...[
+              if (!budget.planned && (catRows.isNotEmpty || limited.isNotEmpty)) ...[
                 const SectionTitle('По категориям'),
                 Card(
                   child: Padding(

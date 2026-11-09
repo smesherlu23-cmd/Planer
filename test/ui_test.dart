@@ -13,9 +13,11 @@ import 'package:planer/data/database.dart';
 import 'package:planer/data/dates.dart';
 import 'package:planer/data/queries.dart';
 import 'package:planer/data/templates.dart';
+import 'package:planer/logic/budget.dart';
 import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
 import 'package:planer/ui/icons.dart';
+import 'package:planer/ui/more_screen.dart';
 import 'package:planer/ui/theme.dart';
 
 const screenshots = bool.fromEnvironment('SCREENSHOTS');
@@ -112,6 +114,15 @@ void main() {
           await db.addWater(250, day: day);
         }
       }
+      // Бюджет шаблона составлен на месяц старта: копируем его на текущий месяц.
+      final plan = await db.budgetOf(monthKey(dayFromKey(addDays(today, -14))));
+      await db.saveBudget(monthKey(dayFromKey(today)), [
+        for (final l in plan) (categoryId: l.categoryId, fundId: l.fundId, amount: l.amount),
+      ]);
+      final salary = cats.firstWhere((c) => c.name == 'Зарплата');
+      await db.saveTransaction(
+        TransactionsCompanion.insert(amount: 65000, isIncome: const Value(true), categoryId: Value(salary.id), day: today),
+      );
       final programs = await db.select(db.programs).get();
       await db.saveSession(
         program: programs.first,
@@ -133,6 +144,11 @@ void main() {
 
     Future<void> openFromMore(String title, String name) async {
       await tab('Ещё', '05_more');
+      if (find.text(title).hitTestable().evaluate().isEmpty) {
+        final list = find.descendant(of: find.byType(MoreScreen), matching: find.byType(Scrollable)).first;
+        await tester.scrollUntilVisible(find.text(title).hitTestable(), 200, scrollable: list);
+        await tester.pump(const Duration(milliseconds: 300));
+      }
       await tester.tap(find.text(title).hitTestable().first);
       await pumpData(tester);
       await shot(tester, name);
@@ -148,6 +164,11 @@ void main() {
     await pumpData(tester);
 
     await tab('Деньги', '03_money');
+    await tester.tap(find.text('План').hitTestable().first);
+    await pumpData(tester);
+    await shot(tester, '03b_budget_edit');
+    await back(tester);
+    await pumpData(tester);
     await tab('Спорт', '04_workouts');
     await tester.tap(find.text('Тренировка A').hitTestable().first);
     await pumpData(tester);
@@ -171,6 +192,7 @@ void main() {
     await back(tester);
     await pumpData(tester);
 
+    await openFromMore('План дня', '15_day_plan');
     await openFromMore('Сон', '12_sleep');
     // Окно записи сна.
     await tab('Ещё', '05_more');
@@ -243,6 +265,8 @@ void main() {
     await pumpData(tester);
     expect(find.text('С чего начнём?'), findsOneWidget);
     await shot(tester, '00_setup');
+    await tester.scrollUntilVisible(find.text('Чистый лист').hitTestable(), 200, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 300));
     await tester.tap(find.text('Чистый лист').hitTestable());
     await pumpData(tester);
     expect(find.byType(NavigationBar), findsOneWidget);

@@ -509,3 +509,44 @@ extension HealthQueries on AppDatabase {
     if (last != null) await (delete(waterLogs)..where((t) => t.id.equals(last.id))).go();
   }
 }
+
+/// План дня и бюджет.
+extension PlanQueries on AppDatabase {
+  Stream<List<TimeBlock>> watchTimeBlocks() => (select(timeBlocks)..orderBy([(t) => OrderingTerm(expression: t.start)])).watch();
+
+  Future<int> saveTimeBlock(TimeBlocksCompanion b) async {
+    if (b.id.present) {
+      await (update(timeBlocks)..where((t) => t.id.equals(b.id.value))).write(b);
+      return b.id.value;
+    }
+    return into(timeBlocks).insert(b);
+  }
+
+  Stream<List<BudgetLine>> watchBudget(int month) => (select(budgetLines)..where((t) => t.month.equals(month))).watch();
+
+  Future<List<BudgetLine>> budgetOf(int month) => (select(budgetLines)..where((t) => t.month.equals(month))).get();
+
+  /// Последний месяц до [month], для которого составлен бюджет.
+  Future<int?> previousBudgetMonth(int month) async {
+    final row =
+        await (select(budgetLines)
+              ..where((t) => t.month.isSmallerThanValue(month))
+              ..orderBy([(t) => OrderingTerm.desc(t.month)])
+              ..limit(1))
+            .getSingleOrNull();
+    return row?.month;
+  }
+
+  /// Заменить бюджет месяца целиком. Строки с нулём не сохраняются.
+  Future<void> saveBudget(int month, List<({int? categoryId, int? fundId, double amount})> lines) => transaction(() async {
+    await (delete(budgetLines)..where((t) => t.month.equals(month))).go();
+    for (final l in lines) {
+      if (l.amount <= 0) continue;
+      await into(budgetLines)
+          .insert(BudgetLinesCompanion.insert(month: month, categoryId: Value(l.categoryId), fundId: Value(l.fundId), amount: l.amount));
+    }
+  });
+
+  Stream<List<FundMove>> watchFundMovesBetween(int from, int to) =>
+      (select(fundMoves)..where((t) => t.day.isBetweenValues(from, to))).watch();
+}

@@ -38,6 +38,7 @@ List<PlannedNotification> planNotifications({
   required List<Program> programs,
   required List<Reminder> reminders,
   SleepGoals? sleep,
+  List<TimeBlock> blocks = const [],
 }) {
   final result = <PlannedNotification>[];
   for (final h in habits) {
@@ -102,6 +103,18 @@ List<PlannedNotification> planNotifications({
       ),
     );
   }
+  for (final b in blocks) {
+    if (!b.remind || b.daysMask == 0) continue;
+    result.add(
+      PlannedNotification(
+        baseId: 600000 + b.id,
+        title: b.name,
+        body: 'По плану дня до ${formatMinutes(b.end)}',
+        daysMask: b.daysMask,
+        minutes: b.start,
+      ),
+    );
+  }
   return result;
 }
 
@@ -137,7 +150,7 @@ class NotificationService {
     }
     // Любое изменение расписаний пересоздаёт напоминания.
     _sub = db
-        .tableUpdates(TableUpdateQuery.onAllTables([db.habits, db.trackers, db.programs, db.reminders, db.settings]))
+        .tableUpdates(TableUpdateQuery.onAllTables([db.habits, db.trackers, db.programs, db.reminders, db.settings, db.timeBlocks]))
         .listen((_) => _scheduleSoon());
     await reschedule();
   }
@@ -198,6 +211,7 @@ class NotificationService {
       programs: await db.select(db.programs).get(),
       reminders: await db.select(db.reminders).get(),
       sleep: SleepGoals.from({for (final r in await db.select(db.settings).get()) r.key: r.value}),
+      blocks: await db.select(db.timeBlocks).get(),
     );
     final mode = await canExact() ? AndroidScheduleMode.exactAllowWhileIdle : AndroidScheduleMode.inexactAllowWhileIdle;
     await _plugin.cancelAll();

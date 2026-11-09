@@ -4,11 +4,13 @@ import '../data/database.dart';
 import '../data/dates.dart';
 import '../data/queries.dart';
 import '../logic/calc.dart';
+import '../logic/day_plan.dart';
 import '../logic/food.dart';
 import '../logic/minimum.dart';
 import '../logic/sleep.dart';
 import '../logic/values.dart';
 import 'common.dart';
+import 'day_plan_screen.dart';
 import 'food_screen.dart';
 import 'icons.dart';
 import 'habits_screen.dart';
@@ -74,6 +76,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
           db.watchMeals(from: today, to: today),
           db.watchWater(from: today, to: today),
           db.watchHardDays(),
+          db.watchTimeBlocks(),
         ],
         builder: (context, v) => _TodayBody(
           today: today,
@@ -88,6 +91,7 @@ class _TodayScreenState extends State<TodayScreen> with WidgetsBindingObserver {
           lastNight: (v[8] as List<SleepLog>).firstOrNull,
           food: dayFood(today, v[9] as List<Meal>, v[10] as List<WaterLog>),
           badDay: (v[11] as Set<int>).contains(today),
+          blocks: todayBlocks(v[12] as List<TimeBlock>, v[7] as Map<String, String>),
         ),
       ),
     );
@@ -108,6 +112,7 @@ class _TodayBody extends StatelessWidget {
     required this.lastNight,
     required this.food,
     required this.badDay,
+    required this.blocks,
   });
 
   final int today;
@@ -124,6 +129,9 @@ class _TodayBody extends StatelessWidget {
 
   /// Тяжёлый день: всё, что отмечаешь, сохраняется как минимум.
   final bool badDay;
+
+  /// План дня на сегодня.
+  final List<PlanBlock> blocks;
 
   @override
   Widget build(BuildContext context) {
@@ -213,6 +221,7 @@ class _TodayBody extends StatelessWidget {
             },
           ),
         ),
+        if (blocks.isNotEmpty) ...[const SectionTitle('По плану'), DayPlanTodayCard(blocks: blocks)],
         if (sleepGoals.onToday || foodGoals.onToday) const SectionTitle('Сон и питание'),
         if (sleepGoals.onToday) SleepTodayCard(today: today, lastNight: lastNight, settings: settings),
         if (foodGoals.onToday) FoodTodayCard(today: today, totals: food, goals: foodGoals),

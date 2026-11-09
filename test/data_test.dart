@@ -28,6 +28,8 @@ void main() {
     expect((await db.select(db.categories).get()).length, 11);
     expect((await db.select(db.reminders).get()).length, 2);
     expect((await db.select(db.foods).get()).length, 10);
+    expect((await db.select(db.timeBlocks).get()).length, 10);
+    expect((await db.select(db.budgetLines).get()).length, 7);
     final settings = await db.watchAllSettings().first;
     expect(settings['sleep_on'], '1');
     expect(settings['food_kcal'], '3000');

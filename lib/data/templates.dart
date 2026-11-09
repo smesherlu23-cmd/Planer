@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 
 import 'database.dart';
 import 'dates.dart';
+import '../logic/budget.dart';
 import '../logic/calc.dart';
 import '../logic/food.dart';
 import '../logic/sleep.dart';
@@ -26,8 +27,8 @@ const templates = [
   TemplateInfo(
     'my_plan',
     'Мой план',
-    'Сон с отбоем в 23:00, питание на набор массы, код, спина, тренировки A и B, вес и силовые цели, кредит, '
-        'копилки на права и Civic, итог дня и обзор недели.',
+    'План дня, сон с отбоем в 23:00, питание на массу, код, спина, тренировки A и B, цели, '
+        'бюджет с кредитом и копилками на права и Civic.',
   ),
   TemplateInfo('basic', 'Чистый лист', 'Только категории расходов и доходов. Всё остальное добавишь сам.'),
 ];
@@ -174,10 +175,56 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       monthlyAmount: const Value(12000),
     ),
   );
-  await db.saveFund(FundsCompanion.insert(name: 'Права', icon: const Value('license'), kind: FundKind.savings, target: const Value(60000)));
-  final civic = await db.saveFund(
-    FundsCompanion.insert(name: 'Honda Civic', icon: const Value('car'), kind: FundKind.savings, target: const Value(300000)),
+  final license = await db.saveFund(
+    FundsCompanion.insert(
+      name: 'Права',
+      icon: const Value('license'),
+      kind: FundKind.savings,
+      target: const Value(60000),
+      monthlyAmount: const Value(20000),
+    ),
   );
+  final civic = await db.saveFund(
+    FundsCompanion.insert(
+      name: 'Honda Civic',
+      icon: const Value('car'),
+      kind: FundKind.savings,
+      target: const Value(300000),
+      monthlyAmount: const Value(23000),
+    ),
+  );
+
+  // ----- Бюджет на месяц: доход 65 тыс., кредит 12, на себя 10, остальное в копилки -----
+  final cats = {for (final c in await db.select(db.categories).get()) c.name: c.id};
+  await db.saveBudget(monthKey(dayFromKey(today)), [
+    (categoryId: cats['Зарплата'], fundId: null, amount: 65000),
+    (categoryId: null, fundId: loan, amount: 12000),
+    (categoryId: null, fundId: license, amount: 20000),
+    (categoryId: null, fundId: civic, amount: 23000),
+    (categoryId: cats['Одежда'], fundId: null, amount: 4000),
+    (categoryId: cats['Уход и здоровье'], fundId: null, amount: 3000),
+    (categoryId: cats['Другое'], fundId: null, amount: 3000),
+  ]);
+
+  // ----- План будних дней и выходных. Сон берётся из раздела «Сон» -----
+  final weekdays = maskFromWeekdays([1, 2, 3, 4, 5]);
+  final blocks = [
+    ('Подъём и завтрак', 'breakfast', BlockKind.food, 7 * 60, 8 * 60, weekdays),
+    ('Работа', 'warehouse', BlockKind.work, 8 * 60, 17 * 60, weekdays),
+    ('Еда и отдых', 'restaurant', BlockKind.food, 17 * 60 + 15, 17 * 60 + 45, weekdays),
+    ('Тренировка', 'fitness', BlockKind.sport, 18 * 60, 18 * 60 + 40, maskFromWeekdays([_mon, _wed, _fri])),
+    ('Прогулка', 'walk', BlockKind.rest, 18 * 60, 18 * 60 + 40, maskFromWeekdays([2, 4])),
+    ('Программирование', 'code', BlockKind.study, 18 * 60 + 45, 20 * 60 + 30, weekdays),
+    ('CS и друзья', 'game', BlockKind.rest, 20 * 60 + 30, 22 * 60 + 30, weekdays),
+    ('Без экрана, итог дня', 'no_phone', BlockKind.home, 22 * 60 + 30, 23 * 60, everyDay),
+    ('Код', 'code', BlockKind.study, 10 * 60, 13 * 60, maskFromWeekdays([6])),
+    ('Обзор недели', 'note', BlockKind.other, 20 * 60, 20 * 60 + 15, maskFromWeekdays([_sun])),
+  ];
+  for (final (name, icon, kind, start, end, mask) in blocks) {
+    await db.saveTimeBlock(
+      TimeBlocksCompanion.insert(name: name, icon: Value(icon), kind: kind, start: start, end: end, daysMask: Value(mask)),
+    );
+  }
 
   // ----- Цели -----
   await db.saveGoal(
