@@ -1,0 +1,3 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Не даём сборщику выкинуть значок уведомлений. -->
+<resources xmlns:tools="http://schemas.android.com/tools" tools:keep="@drawable/*" />
