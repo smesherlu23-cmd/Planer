@@ -472,13 +472,16 @@ extension HealthQueries on AppDatabase {
   Future<List<Meal>> mealsBetween(int from, int to) => (select(meals)..where((t) => t.day.isBetweenValues(from, to))).get();
 
   /// Записать блюдо как съеденное.
-  Future<int> eatFood(Food f, {int? day}) => into(meals).insert(
+  Future<int> eatFood(Food f, {int? day, int? slot}) => into(meals).insert(
     MealsCompanion.insert(
       day: day ?? todayKey(),
       name: f.name,
       icon: Value(f.icon),
       kcal: f.kcal,
       protein: Value(f.protein),
+      fat: Value(f.fat),
+      carbs: Value(f.carbs),
+      slot: Value(slot),
       foodId: Value(f.id),
     ),
   );

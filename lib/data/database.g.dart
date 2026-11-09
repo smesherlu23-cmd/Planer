@@ -6547,6 +6547,26 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _fatMeta = const VerificationMeta('fat');
+  @override
+  late final GeneratedColumn<double> fat = GeneratedColumn<double>(
+    'fat',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _carbsMeta = const VerificationMeta('carbs');
+  @override
+  late final GeneratedColumn<double> carbs = GeneratedColumn<double>(
+    'carbs',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   static const VerificationMeta _sortOrderMeta = const VerificationMeta('sortOrder');
   @override
   late final GeneratedColumn<int> sortOrder = GeneratedColumn<int>(
@@ -6569,7 +6589,7 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
     defaultValue: const Constant(false),
   );
   @override
-  List<GeneratedColumn> get $columns => [id, name, icon, kcal, protein, sortOrder, archived];
+  List<GeneratedColumn> get $columns => [id, name, icon, kcal, protein, fat, carbs, sortOrder, archived];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -6598,6 +6618,12 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
     if (data.containsKey('protein')) {
       context.handle(_proteinMeta, protein.isAcceptableOrUnknown(data['protein']!, _proteinMeta));
     }
+    if (data.containsKey('fat')) {
+      context.handle(_fatMeta, fat.isAcceptableOrUnknown(data['fat']!, _fatMeta));
+    }
+    if (data.containsKey('carbs')) {
+      context.handle(_carbsMeta, carbs.isAcceptableOrUnknown(data['carbs']!, _carbsMeta));
+    }
     if (data.containsKey('sort_order')) {
       context.handle(_sortOrderMeta, sortOrder.isAcceptableOrUnknown(data['sort_order']!, _sortOrderMeta));
     }
@@ -6618,6 +6644,8 @@ class $FoodsTable extends Foods with TableInfo<$FoodsTable, Food> {
       icon: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}icon'])!,
       kcal: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}kcal'])!,
       protein: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}protein'])!,
+      fat: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}fat'])!,
+      carbs: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}carbs'])!,
       sortOrder: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}sort_order'])!,
       archived: attachedDatabase.typeMapping.read(DriftSqlType.bool, data['${effectivePrefix}archived'])!,
     );
@@ -6635,6 +6663,8 @@ class Food extends DataClass implements Insertable<Food> {
   final String icon;
   final double kcal;
   final double protein;
+  final double fat;
+  final double carbs;
   final int sortOrder;
   final bool archived;
   const Food({
@@ -6643,6 +6673,8 @@ class Food extends DataClass implements Insertable<Food> {
     required this.icon,
     required this.kcal,
     required this.protein,
+    required this.fat,
+    required this.carbs,
     required this.sortOrder,
     required this.archived,
   });
@@ -6654,6 +6686,8 @@ class Food extends DataClass implements Insertable<Food> {
     map['icon'] = Variable<String>(icon);
     map['kcal'] = Variable<double>(kcal);
     map['protein'] = Variable<double>(protein);
+    map['fat'] = Variable<double>(fat);
+    map['carbs'] = Variable<double>(carbs);
     map['sort_order'] = Variable<int>(sortOrder);
     map['archived'] = Variable<bool>(archived);
     return map;
@@ -6666,6 +6700,8 @@ class Food extends DataClass implements Insertable<Food> {
       icon: Value(icon),
       kcal: Value(kcal),
       protein: Value(protein),
+      fat: Value(fat),
+      carbs: Value(carbs),
       sortOrder: Value(sortOrder),
       archived: Value(archived),
     );
@@ -6679,6 +6715,8 @@ class Food extends DataClass implements Insertable<Food> {
       icon: serializer.fromJson<String>(json['icon']),
       kcal: serializer.fromJson<double>(json['kcal']),
       protein: serializer.fromJson<double>(json['protein']),
+      fat: serializer.fromJson<double>(json['fat']),
+      carbs: serializer.fromJson<double>(json['carbs']),
       sortOrder: serializer.fromJson<int>(json['sortOrder']),
       archived: serializer.fromJson<bool>(json['archived']),
     );
@@ -6692,17 +6730,31 @@ class Food extends DataClass implements Insertable<Food> {
       'icon': serializer.toJson<String>(icon),
       'kcal': serializer.toJson<double>(kcal),
       'protein': serializer.toJson<double>(protein),
+      'fat': serializer.toJson<double>(fat),
+      'carbs': serializer.toJson<double>(carbs),
       'sortOrder': serializer.toJson<int>(sortOrder),
       'archived': serializer.toJson<bool>(archived),
     };
   }
 
-  Food copyWith({int? id, String? name, String? icon, double? kcal, double? protein, int? sortOrder, bool? archived}) => Food(
+  Food copyWith({
+    int? id,
+    String? name,
+    String? icon,
+    double? kcal,
+    double? protein,
+    double? fat,
+    double? carbs,
+    int? sortOrder,
+    bool? archived,
+  }) => Food(
     id: id ?? this.id,
     name: name ?? this.name,
     icon: icon ?? this.icon,
     kcal: kcal ?? this.kcal,
     protein: protein ?? this.protein,
+    fat: fat ?? this.fat,
+    carbs: carbs ?? this.carbs,
     sortOrder: sortOrder ?? this.sortOrder,
     archived: archived ?? this.archived,
   );
@@ -6713,6 +6765,8 @@ class Food extends DataClass implements Insertable<Food> {
       icon: data.icon.present ? data.icon.value : this.icon,
       kcal: data.kcal.present ? data.kcal.value : this.kcal,
       protein: data.protein.present ? data.protein.value : this.protein,
+      fat: data.fat.present ? data.fat.value : this.fat,
+      carbs: data.carbs.present ? data.carbs.value : this.carbs,
       sortOrder: data.sortOrder.present ? data.sortOrder.value : this.sortOrder,
       archived: data.archived.present ? data.archived.value : this.archived,
     );
@@ -6726,6 +6780,8 @@ class Food extends DataClass implements Insertable<Food> {
           ..write('icon: $icon, ')
           ..write('kcal: $kcal, ')
           ..write('protein: $protein, ')
+          ..write('fat: $fat, ')
+          ..write('carbs: $carbs, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('archived: $archived')
           ..write(')'))
@@ -6733,7 +6789,7 @@ class Food extends DataClass implements Insertable<Food> {
   }
 
   @override
-  int get hashCode => Object.hash(id, name, icon, kcal, protein, sortOrder, archived);
+  int get hashCode => Object.hash(id, name, icon, kcal, protein, fat, carbs, sortOrder, archived);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -6743,6 +6799,8 @@ class Food extends DataClass implements Insertable<Food> {
           other.icon == this.icon &&
           other.kcal == this.kcal &&
           other.protein == this.protein &&
+          other.fat == this.fat &&
+          other.carbs == this.carbs &&
           other.sortOrder == this.sortOrder &&
           other.archived == this.archived);
 }
@@ -6753,6 +6811,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
   final Value<String> icon;
   final Value<double> kcal;
   final Value<double> protein;
+  final Value<double> fat;
+  final Value<double> carbs;
   final Value<int> sortOrder;
   final Value<bool> archived;
   const FoodsCompanion({
@@ -6761,6 +6821,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
     this.icon = const Value.absent(),
     this.kcal = const Value.absent(),
     this.protein = const Value.absent(),
+    this.fat = const Value.absent(),
+    this.carbs = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.archived = const Value.absent(),
   });
@@ -6770,6 +6832,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
     this.icon = const Value.absent(),
     required double kcal,
     this.protein = const Value.absent(),
+    this.fat = const Value.absent(),
+    this.carbs = const Value.absent(),
     this.sortOrder = const Value.absent(),
     this.archived = const Value.absent(),
   }) : name = Value(name),
@@ -6780,6 +6844,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
     Expression<String>? icon,
     Expression<double>? kcal,
     Expression<double>? protein,
+    Expression<double>? fat,
+    Expression<double>? carbs,
     Expression<int>? sortOrder,
     Expression<bool>? archived,
   }) {
@@ -6789,6 +6855,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
       if (icon != null) 'icon': icon,
       if (kcal != null) 'kcal': kcal,
       if (protein != null) 'protein': protein,
+      if (fat != null) 'fat': fat,
+      if (carbs != null) 'carbs': carbs,
       if (sortOrder != null) 'sort_order': sortOrder,
       if (archived != null) 'archived': archived,
     });
@@ -6800,6 +6868,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
     Value<String>? icon,
     Value<double>? kcal,
     Value<double>? protein,
+    Value<double>? fat,
+    Value<double>? carbs,
     Value<int>? sortOrder,
     Value<bool>? archived,
   }) {
@@ -6809,6 +6879,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
       icon: icon ?? this.icon,
       kcal: kcal ?? this.kcal,
       protein: protein ?? this.protein,
+      fat: fat ?? this.fat,
+      carbs: carbs ?? this.carbs,
       sortOrder: sortOrder ?? this.sortOrder,
       archived: archived ?? this.archived,
     );
@@ -6832,6 +6904,12 @@ class FoodsCompanion extends UpdateCompanion<Food> {
     if (protein.present) {
       map['protein'] = Variable<double>(protein.value);
     }
+    if (fat.present) {
+      map['fat'] = Variable<double>(fat.value);
+    }
+    if (carbs.present) {
+      map['carbs'] = Variable<double>(carbs.value);
+    }
     if (sortOrder.present) {
       map['sort_order'] = Variable<int>(sortOrder.value);
     }
@@ -6849,6 +6927,8 @@ class FoodsCompanion extends UpdateCompanion<Food> {
           ..write('icon: $icon, ')
           ..write('kcal: $kcal, ')
           ..write('protein: $protein, ')
+          ..write('fat: $fat, ')
+          ..write('carbs: $carbs, ')
           ..write('sortOrder: $sortOrder, ')
           ..write('archived: $archived')
           ..write(')'))
@@ -6923,6 +7003,35 @@ class $MealsTable extends Meals with TableInfo<$MealsTable, Meal> {
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _fatMeta = const VerificationMeta('fat');
+  @override
+  late final GeneratedColumn<double> fat = GeneratedColumn<double>(
+    'fat',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _carbsMeta = const VerificationMeta('carbs');
+  @override
+  late final GeneratedColumn<double> carbs = GeneratedColumn<double>(
+    'carbs',
+    aliasedName,
+    false,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _slotMeta = const VerificationMeta('slot');
+  @override
+  late final GeneratedColumn<int> slot = GeneratedColumn<int>(
+    'slot',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _foodIdMeta = const VerificationMeta('foodId');
   @override
   late final GeneratedColumn<int> foodId = GeneratedColumn<int>(
@@ -6934,7 +7043,7 @@ class $MealsTable extends Meals with TableInfo<$MealsTable, Meal> {
     defaultConstraints: GeneratedColumn.constraintIsAlways('REFERENCES foods (id) ON DELETE SET NULL'),
   );
   @override
-  List<GeneratedColumn> get $columns => [id, day, at, name, icon, kcal, protein, foodId];
+  List<GeneratedColumn> get $columns => [id, day, at, name, icon, kcal, protein, fat, carbs, slot, foodId];
   @override
   String get aliasedName => _alias ?? actualTableName;
   @override
@@ -6971,6 +7080,15 @@ class $MealsTable extends Meals with TableInfo<$MealsTable, Meal> {
     if (data.containsKey('protein')) {
       context.handle(_proteinMeta, protein.isAcceptableOrUnknown(data['protein']!, _proteinMeta));
     }
+    if (data.containsKey('fat')) {
+      context.handle(_fatMeta, fat.isAcceptableOrUnknown(data['fat']!, _fatMeta));
+    }
+    if (data.containsKey('carbs')) {
+      context.handle(_carbsMeta, carbs.isAcceptableOrUnknown(data['carbs']!, _carbsMeta));
+    }
+    if (data.containsKey('slot')) {
+      context.handle(_slotMeta, slot.isAcceptableOrUnknown(data['slot']!, _slotMeta));
+    }
     if (data.containsKey('food_id')) {
       context.handle(_foodIdMeta, foodId.isAcceptableOrUnknown(data['food_id']!, _foodIdMeta));
     }
@@ -6990,6 +7108,9 @@ class $MealsTable extends Meals with TableInfo<$MealsTable, Meal> {
       icon: attachedDatabase.typeMapping.read(DriftSqlType.string, data['${effectivePrefix}icon'])!,
       kcal: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}kcal'])!,
       protein: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}protein'])!,
+      fat: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}fat'])!,
+      carbs: attachedDatabase.typeMapping.read(DriftSqlType.double, data['${effectivePrefix}carbs'])!,
+      slot: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}slot']),
       foodId: attachedDatabase.typeMapping.read(DriftSqlType.int, data['${effectivePrefix}food_id']),
     );
   }
@@ -7008,6 +7129,11 @@ class Meal extends DataClass implements Insertable<Meal> {
   final String icon;
   final double kcal;
   final double protein;
+  final double fat;
+  final double carbs;
+
+  /// Приём пищи: 0 завтрак, 1 обед, 2 ужин, 3 перекус. null у записей до версии 4: определяется по времени.
+  final int? slot;
   final int? foodId;
   const Meal({
     required this.id,
@@ -7017,6 +7143,9 @@ class Meal extends DataClass implements Insertable<Meal> {
     required this.icon,
     required this.kcal,
     required this.protein,
+    required this.fat,
+    required this.carbs,
+    this.slot,
     this.foodId,
   });
   @override
@@ -7029,6 +7158,11 @@ class Meal extends DataClass implements Insertable<Meal> {
     map['icon'] = Variable<String>(icon);
     map['kcal'] = Variable<double>(kcal);
     map['protein'] = Variable<double>(protein);
+    map['fat'] = Variable<double>(fat);
+    map['carbs'] = Variable<double>(carbs);
+    if (!nullToAbsent || slot != null) {
+      map['slot'] = Variable<int>(slot);
+    }
     if (!nullToAbsent || foodId != null) {
       map['food_id'] = Variable<int>(foodId);
     }
@@ -7044,6 +7178,9 @@ class Meal extends DataClass implements Insertable<Meal> {
       icon: Value(icon),
       kcal: Value(kcal),
       protein: Value(protein),
+      fat: Value(fat),
+      carbs: Value(carbs),
+      slot: slot == null && nullToAbsent ? const Value.absent() : Value(slot),
       foodId: foodId == null && nullToAbsent ? const Value.absent() : Value(foodId),
     );
   }
@@ -7058,6 +7195,9 @@ class Meal extends DataClass implements Insertable<Meal> {
       icon: serializer.fromJson<String>(json['icon']),
       kcal: serializer.fromJson<double>(json['kcal']),
       protein: serializer.fromJson<double>(json['protein']),
+      fat: serializer.fromJson<double>(json['fat']),
+      carbs: serializer.fromJson<double>(json['carbs']),
+      slot: serializer.fromJson<int?>(json['slot']),
       foodId: serializer.fromJson<int?>(json['foodId']),
     );
   }
@@ -7072,6 +7212,9 @@ class Meal extends DataClass implements Insertable<Meal> {
       'icon': serializer.toJson<String>(icon),
       'kcal': serializer.toJson<double>(kcal),
       'protein': serializer.toJson<double>(protein),
+      'fat': serializer.toJson<double>(fat),
+      'carbs': serializer.toJson<double>(carbs),
+      'slot': serializer.toJson<int?>(slot),
       'foodId': serializer.toJson<int?>(foodId),
     };
   }
@@ -7084,6 +7227,9 @@ class Meal extends DataClass implements Insertable<Meal> {
     String? icon,
     double? kcal,
     double? protein,
+    double? fat,
+    double? carbs,
+    Value<int?> slot = const Value.absent(),
     Value<int?> foodId = const Value.absent(),
   }) => Meal(
     id: id ?? this.id,
@@ -7093,6 +7239,9 @@ class Meal extends DataClass implements Insertable<Meal> {
     icon: icon ?? this.icon,
     kcal: kcal ?? this.kcal,
     protein: protein ?? this.protein,
+    fat: fat ?? this.fat,
+    carbs: carbs ?? this.carbs,
+    slot: slot.present ? slot.value : this.slot,
     foodId: foodId.present ? foodId.value : this.foodId,
   );
   Meal copyWithCompanion(MealsCompanion data) {
@@ -7104,6 +7253,9 @@ class Meal extends DataClass implements Insertable<Meal> {
       icon: data.icon.present ? data.icon.value : this.icon,
       kcal: data.kcal.present ? data.kcal.value : this.kcal,
       protein: data.protein.present ? data.protein.value : this.protein,
+      fat: data.fat.present ? data.fat.value : this.fat,
+      carbs: data.carbs.present ? data.carbs.value : this.carbs,
+      slot: data.slot.present ? data.slot.value : this.slot,
       foodId: data.foodId.present ? data.foodId.value : this.foodId,
     );
   }
@@ -7118,13 +7270,16 @@ class Meal extends DataClass implements Insertable<Meal> {
           ..write('icon: $icon, ')
           ..write('kcal: $kcal, ')
           ..write('protein: $protein, ')
+          ..write('fat: $fat, ')
+          ..write('carbs: $carbs, ')
+          ..write('slot: $slot, ')
           ..write('foodId: $foodId')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(id, day, at, name, icon, kcal, protein, foodId);
+  int get hashCode => Object.hash(id, day, at, name, icon, kcal, protein, fat, carbs, slot, foodId);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -7136,6 +7291,9 @@ class Meal extends DataClass implements Insertable<Meal> {
           other.icon == this.icon &&
           other.kcal == this.kcal &&
           other.protein == this.protein &&
+          other.fat == this.fat &&
+          other.carbs == this.carbs &&
+          other.slot == this.slot &&
           other.foodId == this.foodId);
 }
 
@@ -7147,6 +7305,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
   final Value<String> icon;
   final Value<double> kcal;
   final Value<double> protein;
+  final Value<double> fat;
+  final Value<double> carbs;
+  final Value<int?> slot;
   final Value<int?> foodId;
   const MealsCompanion({
     this.id = const Value.absent(),
@@ -7156,6 +7317,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
     this.icon = const Value.absent(),
     this.kcal = const Value.absent(),
     this.protein = const Value.absent(),
+    this.fat = const Value.absent(),
+    this.carbs = const Value.absent(),
+    this.slot = const Value.absent(),
     this.foodId = const Value.absent(),
   });
   MealsCompanion.insert({
@@ -7166,6 +7330,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
     this.icon = const Value.absent(),
     required double kcal,
     this.protein = const Value.absent(),
+    this.fat = const Value.absent(),
+    this.carbs = const Value.absent(),
+    this.slot = const Value.absent(),
     this.foodId = const Value.absent(),
   }) : day = Value(day),
        name = Value(name),
@@ -7178,6 +7345,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
     Expression<String>? icon,
     Expression<double>? kcal,
     Expression<double>? protein,
+    Expression<double>? fat,
+    Expression<double>? carbs,
+    Expression<int>? slot,
     Expression<int>? foodId,
   }) {
     return RawValuesInsertable({
@@ -7188,6 +7358,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
       if (icon != null) 'icon': icon,
       if (kcal != null) 'kcal': kcal,
       if (protein != null) 'protein': protein,
+      if (fat != null) 'fat': fat,
+      if (carbs != null) 'carbs': carbs,
+      if (slot != null) 'slot': slot,
       if (foodId != null) 'food_id': foodId,
     });
   }
@@ -7200,6 +7373,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
     Value<String>? icon,
     Value<double>? kcal,
     Value<double>? protein,
+    Value<double>? fat,
+    Value<double>? carbs,
+    Value<int?>? slot,
     Value<int?>? foodId,
   }) {
     return MealsCompanion(
@@ -7210,6 +7386,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
       icon: icon ?? this.icon,
       kcal: kcal ?? this.kcal,
       protein: protein ?? this.protein,
+      fat: fat ?? this.fat,
+      carbs: carbs ?? this.carbs,
+      slot: slot ?? this.slot,
       foodId: foodId ?? this.foodId,
     );
   }
@@ -7238,6 +7417,15 @@ class MealsCompanion extends UpdateCompanion<Meal> {
     if (protein.present) {
       map['protein'] = Variable<double>(protein.value);
     }
+    if (fat.present) {
+      map['fat'] = Variable<double>(fat.value);
+    }
+    if (carbs.present) {
+      map['carbs'] = Variable<double>(carbs.value);
+    }
+    if (slot.present) {
+      map['slot'] = Variable<int>(slot.value);
+    }
     if (foodId.present) {
       map['food_id'] = Variable<int>(foodId.value);
     }
@@ -7254,6 +7442,9 @@ class MealsCompanion extends UpdateCompanion<Meal> {
           ..write('icon: $icon, ')
           ..write('kcal: $kcal, ')
           ..write('protein: $protein, ')
+          ..write('fat: $fat, ')
+          ..write('carbs: $carbs, ')
+          ..write('slot: $slot, ')
           ..write('foodId: $foodId')
           ..write(')'))
         .toString();
@@ -13053,6 +13244,8 @@ typedef $$FoodsTableCreateCompanionBuilder = FoodsCompanion Function({
   Value<String> icon,
   required double kcal,
   Value<double> protein,
+  Value<double> fat,
+  Value<double> carbs,
   Value<int> sortOrder,
   Value<bool> archived,
 });
@@ -13062,6 +13255,8 @@ typedef $$FoodsTableUpdateCompanionBuilder = FoodsCompanion Function({
   Value<String> icon,
   Value<double> kcal,
   Value<double> protein,
+  Value<double> fat,
+  Value<double> carbs,
   Value<int> sortOrder,
   Value<bool> archived,
 });
@@ -13097,6 +13292,10 @@ class $$FoodsTableFilterComposer extends Composer<_$AppDatabase, $FoodsTable> {
   ColumnFilters<double> get kcal => $composableBuilder(column: $table.kcal, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get protein => $composableBuilder(column: $table.protein, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get fat => $composableBuilder(column: $table.fat, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get carbs => $composableBuilder(column: $table.carbs, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnFilters(column));
 
@@ -13138,6 +13337,10 @@ class $$FoodsTableOrderingComposer extends Composer<_$AppDatabase, $FoodsTable> 
 
   ColumnOrderings<double> get protein => $composableBuilder(column: $table.protein, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get fat => $composableBuilder(column: $table.fat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get carbs => $composableBuilder(column: $table.carbs, builder: (column) => ColumnOrderings(column));
+
   ColumnOrderings<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => ColumnOrderings(column));
 
   ColumnOrderings<bool> get archived => $composableBuilder(column: $table.archived, builder: (column) => ColumnOrderings(column));
@@ -13160,6 +13363,10 @@ class $$FoodsTableAnnotationComposer extends Composer<_$AppDatabase, $FoodsTable
   GeneratedColumn<double> get kcal => $composableBuilder(column: $table.kcal, builder: (column) => column);
 
   GeneratedColumn<double> get protein => $composableBuilder(column: $table.protein, builder: (column) => column);
+
+  GeneratedColumn<double> get fat => $composableBuilder(column: $table.fat, builder: (column) => column);
+
+  GeneratedColumn<double> get carbs => $composableBuilder(column: $table.carbs, builder: (column) => column);
 
   GeneratedColumn<int> get sortOrder => $composableBuilder(column: $table.sortOrder, builder: (column) => column);
 
@@ -13206,15 +13413,28 @@ class $$FoodsTableTableManager
           createFilteringComposer: () => $$FoodsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$FoodsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () => $$FoodsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<String> name = const Value.absent(),
-            Value<String> icon = const Value.absent(),
-            Value<double> kcal = const Value.absent(),
-            Value<double> protein = const Value.absent(),
-            Value<int> sortOrder = const Value.absent(),
-            Value<bool> archived = const Value.absent(),
-          }) => FoodsCompanion(id: id, name: name, icon: icon, kcal: kcal, protein: protein, sortOrder: sortOrder, archived: archived),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<double> kcal = const Value.absent(),
+                Value<double> protein = const Value.absent(),
+                Value<double> fat = const Value.absent(),
+                Value<double> carbs = const Value.absent(),
+                Value<int> sortOrder = const Value.absent(),
+                Value<bool> archived = const Value.absent(),
+              }) => FoodsCompanion(
+                id: id,
+                name: name,
+                icon: icon,
+                kcal: kcal,
+                protein: protein,
+                fat: fat,
+                carbs: carbs,
+                sortOrder: sortOrder,
+                archived: archived,
+              ),
           createCompanionCallback:
               ({
                 Value<int> id = const Value.absent(),
@@ -13222,6 +13442,8 @@ class $$FoodsTableTableManager
                 Value<String> icon = const Value.absent(),
                 required double kcal,
                 Value<double> protein = const Value.absent(),
+                Value<double> fat = const Value.absent(),
+                Value<double> carbs = const Value.absent(),
                 Value<int> sortOrder = const Value.absent(),
                 Value<bool> archived = const Value.absent(),
               }) => FoodsCompanion.insert(
@@ -13230,6 +13452,8 @@ class $$FoodsTableTableManager
                 icon: icon,
                 kcal: kcal,
                 protein: protein,
+                fat: fat,
+                carbs: carbs,
                 sortOrder: sortOrder,
                 archived: archived,
               ),
@@ -13281,6 +13505,9 @@ typedef $$MealsTableCreateCompanionBuilder = MealsCompanion Function({
   Value<String> icon,
   required double kcal,
   Value<double> protein,
+  Value<double> fat,
+  Value<double> carbs,
+  Value<int?> slot,
   Value<int?> foodId,
 });
 typedef $$MealsTableUpdateCompanionBuilder = MealsCompanion Function({
@@ -13291,6 +13518,9 @@ typedef $$MealsTableUpdateCompanionBuilder = MealsCompanion Function({
   Value<String> icon,
   Value<double> kcal,
   Value<double> protein,
+  Value<double> fat,
+  Value<double> carbs,
+  Value<int?> slot,
   Value<int?> foodId,
 });
 
@@ -13330,6 +13560,12 @@ class $$MealsTableFilterComposer extends Composer<_$AppDatabase, $MealsTable> {
   ColumnFilters<double> get kcal => $composableBuilder(column: $table.kcal, builder: (column) => ColumnFilters(column));
 
   ColumnFilters<double> get protein => $composableBuilder(column: $table.protein, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get fat => $composableBuilder(column: $table.fat, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<double> get carbs => $composableBuilder(column: $table.carbs, builder: (column) => ColumnFilters(column));
+
+  ColumnFilters<int> get slot => $composableBuilder(column: $table.slot, builder: (column) => ColumnFilters(column));
 
   $$FoodsTableFilterComposer get foodId {
     final $$FoodsTableFilterComposer composer = $composerBuilder(
@@ -13371,6 +13607,12 @@ class $$MealsTableOrderingComposer extends Composer<_$AppDatabase, $MealsTable> 
 
   ColumnOrderings<double> get protein => $composableBuilder(column: $table.protein, builder: (column) => ColumnOrderings(column));
 
+  ColumnOrderings<double> get fat => $composableBuilder(column: $table.fat, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<double> get carbs => $composableBuilder(column: $table.carbs, builder: (column) => ColumnOrderings(column));
+
+  ColumnOrderings<int> get slot => $composableBuilder(column: $table.slot, builder: (column) => ColumnOrderings(column));
+
   $$FoodsTableOrderingComposer get foodId {
     final $$FoodsTableOrderingComposer composer = $composerBuilder(
       composer: this,
@@ -13410,6 +13652,12 @@ class $$MealsTableAnnotationComposer extends Composer<_$AppDatabase, $MealsTable
   GeneratedColumn<double> get kcal => $composableBuilder(column: $table.kcal, builder: (column) => column);
 
   GeneratedColumn<double> get protein => $composableBuilder(column: $table.protein, builder: (column) => column);
+
+  GeneratedColumn<double> get fat => $composableBuilder(column: $table.fat, builder: (column) => column);
+
+  GeneratedColumn<double> get carbs => $composableBuilder(column: $table.carbs, builder: (column) => column);
+
+  GeneratedColumn<int> get slot => $composableBuilder(column: $table.slot, builder: (column) => column);
 
   $$FoodsTableAnnotationComposer get foodId {
     final $$FoodsTableAnnotationComposer composer = $composerBuilder(
@@ -13452,26 +13700,58 @@ class $$MealsTableTableManager
           createFilteringComposer: () => $$MealsTableFilterComposer($db: db, $table: table),
           createOrderingComposer: () => $$MealsTableOrderingComposer($db: db, $table: table),
           createComputedFieldComposer: () => $$MealsTableAnnotationComposer($db: db, $table: table),
-          updateCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            Value<int> day = const Value.absent(),
-            Value<DateTime> at = const Value.absent(),
-            Value<String> name = const Value.absent(),
-            Value<String> icon = const Value.absent(),
-            Value<double> kcal = const Value.absent(),
-            Value<double> protein = const Value.absent(),
-            Value<int?> foodId = const Value.absent(),
-          }) => MealsCompanion(id: id, day: day, at: at, name: name, icon: icon, kcal: kcal, protein: protein, foodId: foodId),
-          createCompanionCallback: ({
-            Value<int> id = const Value.absent(),
-            required int day,
-            Value<DateTime> at = const Value.absent(),
-            required String name,
-            Value<String> icon = const Value.absent(),
-            required double kcal,
-            Value<double> protein = const Value.absent(),
-            Value<int?> foodId = const Value.absent(),
-          }) => MealsCompanion.insert(id: id, day: day, at: at, name: name, icon: icon, kcal: kcal, protein: protein, foodId: foodId),
+          updateCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                Value<int> day = const Value.absent(),
+                Value<DateTime> at = const Value.absent(),
+                Value<String> name = const Value.absent(),
+                Value<String> icon = const Value.absent(),
+                Value<double> kcal = const Value.absent(),
+                Value<double> protein = const Value.absent(),
+                Value<double> fat = const Value.absent(),
+                Value<double> carbs = const Value.absent(),
+                Value<int?> slot = const Value.absent(),
+                Value<int?> foodId = const Value.absent(),
+              }) => MealsCompanion(
+                id: id,
+                day: day,
+                at: at,
+                name: name,
+                icon: icon,
+                kcal: kcal,
+                protein: protein,
+                fat: fat,
+                carbs: carbs,
+                slot: slot,
+                foodId: foodId,
+              ),
+          createCompanionCallback:
+              ({
+                Value<int> id = const Value.absent(),
+                required int day,
+                Value<DateTime> at = const Value.absent(),
+                required String name,
+                Value<String> icon = const Value.absent(),
+                required double kcal,
+                Value<double> protein = const Value.absent(),
+                Value<double> fat = const Value.absent(),
+                Value<double> carbs = const Value.absent(),
+                Value<int?> slot = const Value.absent(),
+                Value<int?> foodId = const Value.absent(),
+              }) => MealsCompanion.insert(
+                id: id,
+                day: day,
+                at: at,
+                name: name,
+                icon: icon,
+                kcal: kcal,
+                protein: protein,
+                fat: fat,
+                carbs: carbs,
+                slot: slot,
+                foodId: foodId,
+              ),
           withReferenceMapper: (p0) =>
               p0.map((e) => (e.readTable<$MealsTable, Meal>(table), $$MealsTableReferences(db, table, e))).toList(),
           prefetchHooksCallback: ({foodId = false}) {

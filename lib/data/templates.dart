@@ -8,6 +8,7 @@ import 'package:drift/drift.dart';
 
 import 'database.dart';
 import 'dates.dart';
+import 'food_data.dart';
 import '../logic/budget.dart';
 import '../logic/calc.dart';
 import '../logic/food.dart';
@@ -130,20 +131,17 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   await db.setSetting(FoodGoals.keyMode, FoodMode.gain.name);
   await db.setSetting(FoodGoals.keyWeight, '$weight');
   await db.setSetting(FoodGoals.keyOn, '1');
-  const foods = [
-    ('Завтрак: овсянка на молоке, банан, 2 яйца', 'breakfast', 700, 30),
-    ('Перекус: банан, йогурт, орехи', 'fruit', 400, 12),
-    ('Обед: гречка или рис с курицей', 'lunch', 750, 50),
-    ('Бутерброды с арахисовой пастой и банан', 'bakery', 500, 15),
-    ('Ужин: макароны с яйцами или тунцом', 'dinner', 650, 35),
-    ('Творог 200 г', 'milk', 250, 30),
-    ('Коктейль: молоко, банан, овсянка, арахисовая паста', 'blender', 700, 28),
-    ('Стакан молока', 'milk', 130, 7),
-    ('Банан', 'fruit', 100, 1),
-    ('2 яйца', 'egg', 150, 12),
-  ];
-  for (final (name, icon, kcal, protein) in foods) {
-    await db.saveFood(FoodsCompanion.insert(name: name, icon: Value(icon), kcal: kcal.toDouble(), protein: Value(protein.toDouble())));
+  for (final (name, icon, kcal, protein, fat, carbs) in templateFoods) {
+    await db.saveFood(
+      FoodsCompanion.insert(
+        name: name,
+        icon: Value(icon),
+        kcal: kcal.toDouble(),
+        protein: Value(protein.toDouble()),
+        fat: Value(fat.toDouble()),
+        carbs: Value(carbs.toDouble()),
+      ),
+    );
   }
 
   // ----- Привычки: первый месяц только две опорные, режим сна на экране «Сон» -----

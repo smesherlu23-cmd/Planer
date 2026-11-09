@@ -215,6 +215,28 @@ void main() {
     await back(tester);
     await pumpData(tester);
     await openFromMore('Питание', '13_food');
+    // Расчёт нормы по формуле.
+    await tab('Ещё', '05_more');
+    await tester.tap(find.text('Питание').hitTestable().first);
+    await pumpData(tester);
+    await tester.tap(find.text('Рассчитать норму').hitTestable().first);
+    await pumpData(tester);
+    await tester.enterText(find.widgetWithText(TextField, 'Год рожд.'), '2006');
+    await tester.enterText(find.widgetWithText(TextField, 'Рост'), '175');
+    await pumpData(tester);
+    expect(find.text('Обмен в покое'), findsOneWidget);
+    await shot(tester, '13b_food_calc');
+    await tester.ensureVisible(find.text('Применить'));
+    await tester.pump(const Duration(milliseconds: 300));
+    await tester.tap(find.text('Применить'));
+    await pumpData(tester);
+    final applied = await tester.runAsync(() => db.watchAllSettings().first);
+    expect(applied!['body_height'], '175');
+    await tester.scrollUntilVisible(find.text('Съедено').hitTestable(), 300, scrollable: find.byType(Scrollable).first);
+    await tester.pump(const Duration(milliseconds: 400));
+    await shot(tester, '13c_food_meals');
+    await back(tester);
+    await pumpData(tester);
     await openFromMore('Цели', '07_goals');
     await openFromMore('Записи', '08_journal');
     await openFromMore('Отчёт недели', '09_report');

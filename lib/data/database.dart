@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import 'dates.dart';
+import 'food_data.dart';
 import 'icon_keys.dart';
 
 part 'database.g.dart';
@@ -285,6 +286,8 @@ class Foods extends Table {
   TextColumn get icon => text().withDefault(const Constant('restaurant'))();
   RealColumn get kcal => real()();
   RealColumn get protein => real().withDefault(const Constant(0))();
+  RealColumn get fat => real().withDefault(const Constant(0))();
+  RealColumn get carbs => real().withDefault(const Constant(0))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
 }
@@ -298,6 +301,11 @@ class Meals extends Table {
   TextColumn get icon => text().withDefault(const Constant('restaurant'))();
   RealColumn get kcal => real()();
   RealColumn get protein => real().withDefault(const Constant(0))();
+  RealColumn get fat => real().withDefault(const Constant(0))();
+  RealColumn get carbs => real().withDefault(const Constant(0))();
+
+  /// Приём пищи: 0 завтрак, 1 обед, 2 ужин, 3 перекус. null у записей до версии 4: определяется по времени.
+  IntColumn get slot => integer().nullable()();
   IntColumn get foodId => integer().nullable().references(Foods, #id, onDelete: KeyAction.setNull)();
 }
 
@@ -389,7 +397,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -415,6 +423,21 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(workoutSessions, workoutSessions.minimum);
         await moveLegacyHardDay();
       }
+      if (from < 4) {
+        // Версия 4: жиры и углеводы у блюд и записей, приём пищи у записи.
+        // Таблицы питания, созданные шагом версии 2, уже с новыми колонками.
+        Future<void> add(TableInfo<Table, Object?> table, GeneratedColumn<Object> column) async {
+          final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+          if (!cols.any((c) => c.read<String>('name') == column.name)) await m.addColumn(table, column);
+        }
+
+        await add(foods, foods.fat);
+        await add(foods, foods.carbs);
+        await add(meals, meals.fat);
+        await add(meals, meals.carbs);
+        await add(meals, meals.slot);
+        await fillTemplateMacros();
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
@@ -427,6 +450,14 @@ class AppDatabase extends _$AppDatabase {
     final day = int.tryParse(row?.read<String>('value') ?? '');
     if (day != null) await customStatement('INSERT OR IGNORE INTO hard_days (day) VALUES (?)', [day]);
     await customStatement("DELETE FROM settings WHERE key = 'bad_day'");
+  }
+
+  /// Блюда из шаблона «Мой план» были без жиров и углеводов: дописываем их и в блюда, и в уже записанную еду.
+  Future<void> fillTemplateMacros() async {
+    for (final (name, fat, carbs) in templateFoodMacros) {
+      await customStatement('UPDATE foods SET fat = ?, carbs = ? WHERE name = ? AND fat = 0 AND carbs = 0', [fat, carbs, name]);
+      await customStatement('UPDATE meals SET fat = ?, carbs = ? WHERE name = ? AND fat = 0 AND carbs = 0', [fat, carbs, name]);
+    }
   }
 
   /// Заменить эмодзи из старых версий на ключи иконок. Неизвестные значения не трогает.
