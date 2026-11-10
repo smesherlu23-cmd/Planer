@@ -22,8 +22,8 @@ class MoreScreen extends StatelessWidget {
       _Tile(
         icon: Icons.view_timeline_rounded,
         color: Accent.report,
-        title: 'План дня',
-        subtitle: 'Куда уходит время',
+        title: 'Время и задачи',
+        subtitle: 'Задачи, план дня, фокус',
         onTap: () => open(const DayPlanScreen()),
       ),
       _Tile(
@@ -57,15 +57,15 @@ class MoreScreen extends StatelessWidget {
       _Tile(
         icon: Icons.auto_stories_rounded,
         color: Accent.journal,
-        title: 'Записи',
-        subtitle: 'Итоги дня и недели',
+        title: 'Дневник',
+        subtitle: 'Настроение, победы, выводы',
         onTap: () => open(const JournalScreen()),
       ),
       _Tile(
         icon: Icons.insights_rounded,
         color: Accent.report,
-        title: 'Отчёт недели',
-        subtitle: 'Всё на одном экране',
+        title: 'Итоги',
+        subtitle: 'День, неделя, месяц',
         onTap: () => open(const ReportScreen()),
       ),
     ];

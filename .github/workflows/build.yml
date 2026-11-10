@@ -22,6 +22,8 @@ jobs:
         with:
           distribution: temurin
           java-version: '21'
+          # Gradle и Kotlin скачиваются с github.com, который иногда отвечает 504. Кэш убирает эти скачивания.
+          cache: gradle
 
       - uses: subosito/flutter-action@v2
         with:
@@ -35,6 +37,18 @@ jobs:
       - name: Проверка кода
         run: flutter analyze
 
+      # Сборщик sqlite3 для тестов скачивает библиотеку с github.com. При сбое сети приходит не тот файл,
+      # поэтому сначала скачиваем её отдельным коротким прогоном с повтором. Сами тесты идут один раз, ниже.
+      - name: Библиотеки для тестов
+        run: |
+          for attempt in 1 2 3; do
+            if flutter test test/calc_test.dart > /dev/null; then exit 0; fi
+            echo "Не скачалось, попытка $attempt из 3. Повтор через 30 секунд."
+            rm -rf .dart_tool/hooks_runner
+            sleep 30
+          done
+          exit 1
+
       - name: Тесты
         run: flutter test
 
@@ -47,13 +61,71 @@ jobs:
             echo "PLANER_KEYSTORE_PATH=$RUNNER_TEMP/planer.jks" >> "$GITHUB_ENV"
           fi
 
+      - name: SQLite для Android с повтором
+        run: |
+          # Сборка скачивает libsqlite3 с github.com. При ответе 504 приходит не тот файл и сборка падает.
+          # Скачиваем заранее с повтором, сверяем хэши и указываем сборке готовую папку.
+          pkg="$(grep -o '"rootUri": *"file://[^"]*/sqlite3-[0-9.]*"' .dart_tool/package_config.json | sed 's/.*"file:\/\///; s/"$//')"
+          hashes="/$pkg/lib/src/hook/asset_hashes.dart"
+          tag="$(grep "releaseTag = " "$hashes" | sed "s/.*'\(.*\)'.*/\1/")"
+          dir="$RUNNER_TEMP/sqlite3"
+          mkdir -p "$dir"
+          for abi in arm arm64 x64; do
+            file="libsqlite3.$abi.android.so"
+            want="$(grep "'$file'" "$hashes" | sed "s/.*: *'\(.*\)'.*/\1/")"
+            ok=""
+            for attempt in 1 2 3 4 5 6; do
+              if curl -fsSL --retry 3 --retry-all-errors --retry-delay 10 -o "$dir/$file" \
+                  "https://github.com/simolus3/sqlite3.dart/releases/download/$tag/$file" \
+                  && [ "$(sha256sum "$dir/$file" | cut -d' ' -f1)" = "$want" ]; then ok=1; break; fi
+              echo "$file не скачался, попытка $attempt из 6."
+              sleep 20
+            done
+            if [ -z "$ok" ]; then echo "Не скачалось заранее, сборка попробует сама."; exit 0; fi
+          done
+          printf '\nhooks:\n  user_defines:\n    sqlite3:\n      source: test-sqlite3\n      directory: %s/\n' "$dir" >> pubspec.yaml
+          rm -rf .dart_tool/hooks_runner
+          ls -l "$dir"
+
+      - name: Gradle с запасных адресов
+        run: |
+          # github.com иногда отвечает 504 на скачивание Gradle. Пробуем несколько адресов и даём Gradle готовый файл.
+          url="$(grep distributionUrl android/gradle/wrapper/gradle-wrapper.properties | sed 's/.*=//; s/\\//g')"
+          name="$(basename "$url")"
+          for attempt in 1 2 3; do
+            for src in "$url" \
+                "https://downloads.gradle.org/distributions/$name" \
+                "https://mirrors.cloud.tencent.com/gradle/$name" \
+                "https://github.com/gradle/gradle-distributions/releases/download/v$(echo "$name" | sed 's/gradle-//; s/-.*//')/$name"; do
+              echo "Скачиваю $src"
+              if curl -fL --retry 3 --retry-delay 5 -o "$RUNNER_TEMP/$name" "$src" && unzip -tq "$RUNNER_TEMP/$name" > /dev/null; then
+                sed -i "s|^distributionUrl=.*|distributionUrl=file\\://$RUNNER_TEMP/$name|" android/gradle/wrapper/gradle-wrapper.properties
+                exit 0
+              fi
+            done
+            sleep 20
+          done
+          echo "Не удалось скачать Gradle заранее, сборка попробует сама."
+
+      - name: Зеркало Maven Central для встроенной сборки Flutter
+        run: |
+          mkdir -p ~/.gradle/init.d
+          cp .github/gradle/mirror.init.gradle ~/.gradle/init.d/
+
       - name: Сборка
         env:
           PLANER_KEYSTORE_PASSWORD: ${{ secrets.PLANER_KEYSTORE_PASSWORD }}
           PLANER_KEY_ALIAS: ${{ secrets.PLANER_KEY_ALIAS }}
           PLANER_KEY_PASSWORD: ${{ secrets.PLANER_KEY_PASSWORD }}
         run: |
-          flutter build apk --release --build-number=${{ github.run_number }}
+          # Повтор только из-за сетевых сбоев при скачивании Gradle и Kotlin: ошибка в коде упадёт все три раза.
+          for attempt in 1 2 3; do
+            if flutter build apk --release --build-number=${{ github.run_number }}; then break; fi
+            if [ "$attempt" = 3 ]; then exit 1; fi
+            rm -rf .dart_tool/hooks_runner
+            echo "Сборка не удалась, попытка $attempt из 3. Повтор через 30 секунд."
+            sleep 30
+          done
           cp build/app/outputs/flutter-apk/app-release.apk planer.apk
 
       - uses: actions/upload-artifact@v4

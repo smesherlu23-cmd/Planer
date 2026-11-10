@@ -8,7 +8,7 @@ import 'package:drift/drift.dart';
 
 import 'database.dart';
 import 'dates.dart';
-import '../logic/budget.dart';
+import 'food_data.dart';
 import '../logic/calc.dart';
 import '../logic/food.dart';
 import '../logic/sleep.dart';
@@ -130,20 +130,17 @@ Future<void> _myPlan(AppDatabase db, int today) async {
   await db.setSetting(FoodGoals.keyMode, FoodMode.gain.name);
   await db.setSetting(FoodGoals.keyWeight, '$weight');
   await db.setSetting(FoodGoals.keyOn, '1');
-  const foods = [
-    ('Завтрак: овсянка на молоке, банан, 2 яйца', 'breakfast', 700, 30),
-    ('Перекус: банан, йогурт, орехи', 'fruit', 400, 12),
-    ('Обед: гречка или рис с курицей', 'lunch', 750, 50),
-    ('Бутерброды с арахисовой пастой и банан', 'bakery', 500, 15),
-    ('Ужин: макароны с яйцами или тунцом', 'dinner', 650, 35),
-    ('Творог 200 г', 'milk', 250, 30),
-    ('Коктейль: молоко, банан, овсянка, арахисовая паста', 'blender', 700, 28),
-    ('Стакан молока', 'milk', 130, 7),
-    ('Банан', 'fruit', 100, 1),
-    ('2 яйца', 'egg', 150, 12),
-  ];
-  for (final (name, icon, kcal, protein) in foods) {
-    await db.saveFood(FoodsCompanion.insert(name: name, icon: Value(icon), kcal: kcal.toDouble(), protein: Value(protein.toDouble())));
+  for (final (name, icon, kcal, protein, fat, carbs) in templateFoods) {
+    await db.saveFood(
+      FoodsCompanion.insert(
+        name: name,
+        icon: Value(icon),
+        kcal: kcal.toDouble(),
+        protein: Value(protein.toDouble()),
+        fat: Value(fat.toDouble()),
+        carbs: Value(carbs.toDouble()),
+      ),
+    );
   }
 
   // ----- Привычки: первый месяц только две опорные, режим сна на экране «Сон» -----
@@ -175,7 +172,7 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       monthlyAmount: const Value(12000),
     ),
   );
-  final license = await db.saveFund(
+  await db.saveFund(
     FundsCompanion.insert(
       name: 'Права',
       icon: const Value('license'),
@@ -193,18 +190,6 @@ Future<void> _myPlan(AppDatabase db, int today) async {
       monthlyAmount: const Value(23000),
     ),
   );
-
-  // ----- Бюджет на месяц: доход 65 тыс., кредит 12, на себя 10, остальное в копилки -----
-  final cats = {for (final c in await db.select(db.categories).get()) c.name: c.id};
-  await db.saveBudget(monthKey(dayFromKey(today)), [
-    (categoryId: cats['Зарплата'], fundId: null, amount: 65000),
-    (categoryId: null, fundId: loan, amount: 12000),
-    (categoryId: null, fundId: license, amount: 20000),
-    (categoryId: null, fundId: civic, amount: 23000),
-    (categoryId: cats['Одежда'], fundId: null, amount: 4000),
-    (categoryId: cats['Уход и здоровье'], fundId: null, amount: 3000),
-    (categoryId: cats['Другое'], fundId: null, amount: 3000),
-  ]);
 
   // ----- План будних дней и выходных. Сон берётся из раздела «Сон» -----
   final weekdays = maskFromWeekdays([1, 2, 3, 4, 5]);

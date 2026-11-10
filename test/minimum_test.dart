@@ -90,10 +90,10 @@ void main() {
       'food_protein_min': '100',
       'food_mode': 'gain',
     });
-    expect(foodLevel((kcal: 3000, protein: 130, water: 0), f), Level.full);
-    expect(foodLevel((kcal: 2600, protein: 110, water: 0), f), Level.minimum);
-    expect(foodLevel((kcal: 2600, protein: 80, water: 0), f), Level.below);
-    expect(foodLevel((kcal: 0, protein: 0, water: 0), f), isNull);
+    expect(foodLevel((kcal: 3000, protein: 130, fat: 0, carbs: 0, water: 0), f), Level.full);
+    expect(foodLevel((kcal: 2600, protein: 110, fat: 0, carbs: 0, water: 0), f), Level.minimum);
+    expect(foodLevel((kcal: 2600, protein: 80, fat: 0, carbs: 0, water: 0), f), Level.below);
+    expect(foodLevel((kcal: 0, protein: 0, fat: 0, carbs: 0, water: 0), f), isNull);
   });
 
   test('отчёт недели считает тяжёлые дни и облегчённые тренировки', () async {

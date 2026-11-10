@@ -2,6 +2,7 @@ import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
 
 import 'dates.dart';
+import 'food_data.dart';
 import 'icon_keys.dart';
 
 part 'database.g.dart';
@@ -32,7 +33,16 @@ enum GoalKind {
 
   /// Баланс копилки или остаток долга.
   fund,
+
+  /// Значение вносится вручную: «прочитать 12 книг», «уровень Faceit 8».
+  manual,
+
+  /// Проект из этапов: прогресс считается по сделанным шагам.
+  steps,
 }
+
+/// Сфера жизни, к которой относится цель.
+enum GoalArea { health, money, career, study, relations, hobby, other }
 
 enum FundKind {
   /// Копилка: баланс растёт от взносов.
@@ -42,8 +52,17 @@ enum FundKind {
   debt,
 }
 
+/// Как часто повторяется регулярный платёж.
+enum RepeatKind { weekly, monthly, yearly }
+
+/// Что делает регулярный платёж: расход, доход или взнос в копилку и платёж по долгу.
+enum RecurringKind { expense, income, fund }
+
 /// На что уходит время в плане дня.
 enum BlockKind { sleep, work, study, sport, rest, home, road, food, other }
+
+/// Как повторяется задача. Следующая копия создаётся, когда отмечаешь текущую.
+enum TaskRepeat { none, daily, weekdays, weekly, monthly }
 
 enum JournalKind {
   /// Итог дня.
@@ -54,6 +73,9 @@ enum JournalKind {
 
   /// Просто заметка.
   note,
+
+  /// Обзор месяца.
+  month,
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +100,41 @@ class Habits extends Table {
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+
+  /// 0: сделать (полезная привычка), 1: бросить (отметка = день без срыва).
+  IntColumn get kind => integer().withDefault(const Constant(0))();
+
+  /// Цель в день для привычки-количества (8 стаканов, 20 страниц). null: просто отметка.
+  RealColumn get target => real().nullable()();
+  TextColumn get unit => text().nullable()();
+
+  /// Сколько раз в неделю. null: по дням из [daysMask].
+  IntColumn get perWeek => integer().nullable()();
+
+  /// Время дня: 0 любое, 1 утро, 2 день, 3 вечер.
+  IntColumn get partOfDay => integer().withDefault(const Constant(0))();
+
+  /// Якорь: после чего делаю («после утреннего кофе»).
+  TextColumn get cue => text().nullable()();
+
+  /// Зачем это мне.
+  TextColumn get why => text().nullable()();
+}
+
+/// Подробности дня привычки: сколько сделано, пропуск по уважительной причине, заметка.
+/// Сама отметка «сделано» живёт в [HabitLogs].
+class HabitDays extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get habitId => integer().references(Habits, #id, onDelete: KeyAction.cascade)();
+  IntColumn get day => integer()();
+  RealColumn get value => real().nullable()();
+  BoolColumn get skipped => boolean().withDefault(const Constant(false))();
+  TextColumn get note => text().nullable()();
+
+  @override
+  List<Set<Column>> get uniqueKeys => [
+    {habitId, day},
+  ];
 }
 
 class HabitLogs extends Table {
@@ -139,6 +196,46 @@ class Goals extends Table {
   IntColumn get startDay => integer()();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// Сфера жизни. null у целей до версии 5.
+  IntColumn get area => intEnum<GoalArea>().nullable()();
+
+  /// Единица для цели с ручными отметками: «книг», «кг».
+  TextColumn get unit => text().nullable()();
+
+  /// Зачем мне это: главный мотив.
+  TextColumn get why => text().nullable()();
+
+  /// Что может помешать (метод WOOP).
+  TextColumn get obstacle => text().nullable()();
+
+  /// План «если…, то…» на этот случай.
+  TextColumn get plan => text().nullable()();
+
+  /// Привычки, которые ведут к цели: id через запятую.
+  TextColumn get habitIds => text().nullable()();
+
+  /// День, когда цель отмечена достигнутой.
+  IntColumn get achievedDay => integer().nullable()();
+}
+
+/// Этап цели: шаг проекта или промежуточная веха.
+class GoalSteps extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get goalId => integer().references(Goals, #id, onDelete: KeyAction.cascade)();
+  TextColumn get title => text()();
+  IntColumn get dueDay => integer().nullable()();
+  IntColumn get doneDay => integer().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+}
+
+/// Ручная отметка прогресса цели: значение на день.
+class GoalCheckins extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get goalId => integer().references(Goals, #id, onDelete: KeyAction.cascade)();
+  IntColumn get day => integer()();
+  RealColumn get value => real()();
+  TextColumn get note => text().nullable()();
 }
 
 class Categories extends Table {
@@ -162,6 +259,59 @@ class Transactions extends Table {
   IntColumn get day => integer()();
   DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
   TextColumn get note => text().nullable()();
+
+  /// Счёт, с которого ушли или на который пришли деньги. null: счёт не указан.
+  IntColumn get accountId => integer().nullable().references(Accounts, #id, onDelete: KeyAction.setNull)();
+}
+
+/// Где лежат деньги: карта, наличные, накопительный счёт.
+class Accounts extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('card'))();
+
+  /// Остаток до первой записанной операции. Корректировка баланса меняет именно его.
+  RealColumn get initialBalance => real().withDefault(const Constant(0))();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Перевод между своими счетами: не доход и не расход.
+class Transfers extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  @ReferenceName('transfersOut')
+  IntColumn get fromAccountId => integer().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  @ReferenceName('transfersIn')
+  IntColumn get toAccountId => integer().references(Accounts, #id, onDelete: KeyAction.cascade)();
+  RealColumn get amount => real()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
+  TextColumn get note => text().nullable()();
+}
+
+/// Регулярный платёж: зарплата, подписка, связь, платёж по кредиту.
+class Recurrings extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get name => text()();
+  TextColumn get icon => text().withDefault(const Constant('payments'))();
+  IntColumn get kind => intEnum<RecurringKind>()();
+  RealColumn get amount => real()();
+  IntColumn get categoryId => integer().nullable().references(Categories, #id, onDelete: KeyAction.setNull)();
+  IntColumn get accountId => integer().nullable().references(Accounts, #id, onDelete: KeyAction.setNull)();
+  IntColumn get fundId => integer().nullable().references(Funds, #id, onDelete: KeyAction.cascade)();
+  IntColumn get repeat => intEnum<RepeatKind>()();
+
+  /// Каждые сколько недель, месяцев или лет.
+  IntColumn get every => integer().withDefault(const Constant(1))();
+
+  /// Ближайшая дата платежа. После оплаты сдвигается на следующий период.
+  IntColumn get nextDay => integer()();
+
+  /// Число месяца для ежемесячных и ежегодных: чтобы 31-е после февраля снова стало 31-м.
+  IntColumn get monthDay => integer().nullable()();
+  BoolColumn get archived => boolean().withDefault(const Constant(false))();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
 }
 
 /// Копилка или долг.
@@ -194,6 +344,9 @@ class FundMoves extends Table {
   RealColumn get amount => real()();
   IntColumn get day => integer()();
   TextColumn get note => text().nullable()();
+
+  /// Счёт, с которого внесли или на который сняли. null: счёт не указан.
+  IntColumn get accountId => integer().nullable().references(Accounts, #id, onDelete: KeyAction.setNull)();
 }
 
 /// Программа тренировок, например «Тренировка A».
@@ -223,6 +376,12 @@ class ProgramExercises extends Table {
   TextColumn get unit => text().withDefault(const Constant('повт'))();
   TextColumn get note => text().nullable()();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+
+  /// Основная мышечная группа: ключ из exercise_catalog.dart. null: берётся из каталога по названию.
+  TextColumn get muscle => text().nullable()();
+
+  /// Отдых между подходами в секундах. null: из каталога или 90 секунд.
+  IntColumn get restSec => integer().nullable()();
 }
 
 class WorkoutSessions extends Table {
@@ -235,6 +394,12 @@ class WorkoutSessions extends Table {
 
   /// Сделано меньше плана: облегчённая тренировка.
   BoolColumn get minimum => boolean().withDefault(const Constant(false))();
+
+  /// Сколько длилась тренировка, в секундах.
+  IntColumn get durationSec => integer().nullable()();
+
+  /// Самочувствие после тренировки от 1 (тяжело) до 5 (отлично).
+  IntColumn get feel => integer().nullable()();
 }
 
 class SessionSets extends Table {
@@ -254,6 +419,30 @@ class JournalEntries extends Table {
   DateTimeColumn get at => dateTime().withDefault(currentDateAndTime)();
   IntColumn get mood => integer().nullable()();
   TextColumn get body => text().withDefault(const Constant(''))();
+
+  /// Заголовок заметки.
+  TextColumn get title => text().nullable()();
+
+  /// Энергия от 1 до 5.
+  IntColumn get energy => integer().nullable()();
+
+  /// Теги через запятую: «работа», «спорт», «плохой сон».
+  TextColumn get tags => text().nullable()();
+
+  /// Победы: что получилось. По строке на пункт.
+  TextColumn get wins => text().nullable()();
+
+  /// За что благодарен.
+  TextColumn get gratitude => text().nullable()();
+
+  /// Урок: что не получилось и почему, что улучшить.
+  TextColumn get lesson => text().nullable()();
+
+  /// Главное на завтра, на следующую неделю или месяц.
+  TextColumn get focus => text().nullable()();
+
+  /// Заметка к цели.
+  IntColumn get goalId => integer().nullable().references(Goals, #id, onDelete: KeyAction.setNull)();
 }
 
 /// Свои напоминания, не привязанные к привычке: «Итог дня», «Обзор недели».
@@ -276,6 +465,14 @@ class SleepLogs extends Table {
   /// Как выспался, от 1 до 5.
   IntColumn get quality => integer().nullable()();
   TextColumn get note => text().nullable()();
+
+  /// Дневник сна: сколько минут засыпал, сколько раз просыпался ночью и сколько минут не спал.
+  IntColumn get latency => integer().nullable()();
+  IntColumn get awakenings => integer().nullable()();
+  IntColumn get awakeMinutes => integer().nullable()();
+
+  /// Что было вечером: ключи через запятую (coffee, alcohol, screen...).
+  TextColumn get tags => text().nullable()();
 }
 
 /// Своё блюдо или продукт для добавления в один тап.
@@ -285,6 +482,14 @@ class Foods extends Table {
   TextColumn get icon => text().withDefault(const Constant('restaurant'))();
   RealColumn get kcal => real()();
   RealColumn get protein => real().withDefault(const Constant(0))();
+  RealColumn get fat => real().withDefault(const Constant(0))();
+  RealColumn get carbs => real().withDefault(const Constant(0))();
+
+  /// Вес порции, г. Если задан, порцию можно записать в граммах: цифры пересчитываются.
+  RealColumn get grams => real().nullable()();
+
+  /// Состав рецепта: JSON-список ингредиентов с весом и БЖУ на 100 г. null у обычного блюда.
+  TextColumn get ingredients => text().nullable()();
   IntColumn get sortOrder => integer().withDefault(const Constant(0))();
   BoolColumn get archived => boolean().withDefault(const Constant(false))();
 }
@@ -298,6 +503,14 @@ class Meals extends Table {
   TextColumn get icon => text().withDefault(const Constant('restaurant'))();
   RealColumn get kcal => real()();
   RealColumn get protein => real().withDefault(const Constant(0))();
+  RealColumn get fat => real().withDefault(const Constant(0))();
+  RealColumn get carbs => real().withDefault(const Constant(0))();
+
+  /// Приём пищи: 0 завтрак, 1 обед, 2 ужин, 3 перекус. null у записей до версии 4: определяется по времени.
+  IntColumn get slot => integer().nullable()();
+
+  /// Сколько граммов съел, если записано по весу.
+  RealColumn get grams => real().nullable()();
   IntColumn get foodId => integer().nullable().references(Foods, #id, onDelete: KeyAction.setNull)();
 }
 
@@ -335,6 +548,47 @@ class TimeBlocks extends Table {
 }
 
 /// Строка бюджета на месяц: плановый доход по категории, лимит расходов по категории или взнос в копилку и платёж по долгу.
+/// Задача: разовое дело с датой, временем, приоритетом и оценкой.
+class Tasks extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  TextColumn get title => text()();
+  TextColumn get note => text().nullable()();
+
+  /// Шаг большой задачи. Удаляется вместе с ней.
+  IntColumn get parentId => integer().nullable().references(Tasks, #id, onDelete: KeyAction.cascade)();
+
+  /// День как 20261109. null: во «Входящих», день ещё не выбран.
+  IntColumn get day => integer().nullable()();
+
+  /// Время в минутах от полуночи.
+  IntColumn get time => integer().nullable()();
+  BoolColumn get remind => boolean().withDefault(const Constant(false))();
+
+  /// 1 главное, 2 важное, 3 обычное, 4 без приоритета.
+  IntColumn get priority => integer().withDefault(const Constant(4))();
+
+  /// Сколько минут займёт, по оценке.
+  IntColumn get estimate => integer().nullable()();
+
+  /// Сфера, как у блоков плана дня: задача подсказывается в блоке того же вида.
+  IntColumn get kind => intEnum<BlockKind>().nullable()();
+  IntColumn get repeat => intEnum<TaskRepeat>().withDefault(const Constant(0))();
+  IntColumn get doneDay => integer().nullable()();
+  DateTimeColumn get doneAt => dateTime().nullable()();
+  IntColumn get sortOrder => integer().withDefault(const Constant(0))();
+  DateTimeColumn get createdAt => dateTime().withDefault(currentDateAndTime)();
+}
+
+/// Отрезок сосредоточенной работы из таймера фокуса.
+class FocusSessions extends Table {
+  IntColumn get id => integer().autoIncrement()();
+  IntColumn get day => integer()();
+  DateTimeColumn get at => dateTime()();
+  IntColumn get minutes => integer()();
+  IntColumn get taskId => integer().nullable().references(Tasks, #id, onDelete: KeyAction.setNull)();
+  IntColumn get kind => intEnum<BlockKind>().nullable()();
+}
+
 class BudgetLines extends Table {
   IntColumn get id => integer().autoIncrement()();
 
@@ -364,8 +618,12 @@ class Settings extends Table {
     TrackerEntries,
     Habits,
     HabitLogs,
+    HabitDays,
+    Accounts,
     Funds,
     Goals,
+    GoalSteps,
+    GoalCheckins,
     Categories,
     Transactions,
     FundMoves,
@@ -383,13 +641,17 @@ class Settings extends Table {
     HardDays,
     TimeBlocks,
     BudgetLines,
+    Transfers,
+    Recurrings,
+    Tasks,
+    FocusSessions,
   ],
 )
 class AppDatabase extends _$AppDatabase {
   AppDatabase([QueryExecutor? executor]) : super(executor ?? driftDatabase(name: 'planer'));
 
   @override
-  int get schemaVersion => 3;
+  int get schemaVersion => 6;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -415,11 +677,101 @@ class AppDatabase extends _$AppDatabase {
         await m.addColumn(workoutSessions, workoutSessions.minimum);
         await moveLegacyHardDay();
       }
+      if (from < 4) {
+        // Версия 4: жиры и углеводы у блюд и записей, приём пищи у записи.
+        // Таблицы питания, созданные шагом версии 2, уже с новыми колонками: добавляются только недостающие.
+        await addMissingColumns(m, foods, [foods.fat, foods.carbs]);
+        await addMissingColumns(m, meals, [meals.fat, meals.carbs, meals.slot]);
+        await fillTemplateMacros();
+      }
+      if (from < 6) {
+        // Версии 5 и 6. Модули делались параллельно, и каждый поднимал версию до 5. Поэтому всё ниже добавляет
+        // только недостающее: база с любой промежуточной версией 5 догоняется целиком, повтор ничего не ломает.
+        await createMissingTables(m, [goalSteps, goalCheckins, tasks, focusSessions]);
+        // Питание: вес порции и рецепты у блюд, вес у записи.
+        await addMissingColumns(m, foods, [foods.grams, foods.ingredients]);
+        await addMissingColumns(m, meals, [meals.grams]);
+        // Привычки: количество, N раз в неделю, «бросить», подсказки. Дневник сна.
+        await addMissingColumns(m, habits, [
+          habits.kind,
+          habits.target,
+          habits.unit,
+          habits.perWeek,
+          habits.partOfDay,
+          habits.cue,
+          habits.why,
+        ]);
+        await addMissingColumns(m, sleepLogs, [sleepLogs.latency, sleepLogs.awakenings, sleepLogs.awakeMinutes, sleepLogs.tags]);
+        await customStatement(
+          'CREATE TABLE IF NOT EXISTS "habit_days" ("id" INTEGER NOT NULL PRIMARY KEY AUTOINCREMENT, '
+          '"habit_id" INTEGER NOT NULL REFERENCES habits (id) ON DELETE CASCADE, "day" INTEGER NOT NULL, "value" REAL NULL, '
+          '"skipped" INTEGER NOT NULL DEFAULT 0 CHECK ("skipped" IN (0, 1)), "note" TEXT NULL, UNIQUE ("habit_id", "day"))',
+        );
+        // Спорт: мышцы и отдых у упражнений, длительность и самочувствие у тренировки.
+        await addMissingColumns(m, programExercises, [programExercises.muscle, programExercises.restSec]);
+        await addMissingColumns(m, workoutSessions, [workoutSessions.durationSec, workoutSessions.feel]);
+        // Цели: сферы, мотив и план. Дневник: победы, теги и фокус.
+        await addMissingColumns(m, goals, [
+          goals.area,
+          goals.unit,
+          goals.why,
+          goals.obstacle,
+          goals.plan,
+          goals.habitIds,
+          goals.achievedDay,
+        ]);
+        await addMissingColumns(m, journalEntries, [
+          journalEntries.title,
+          journalEntries.energy,
+          journalEntries.tags,
+          journalEntries.wins,
+          journalEntries.gratitude,
+          journalEntries.lesson,
+          journalEntries.focus,
+          journalEntries.goalId,
+        ]);
+        // Деньги: счета, переводы, регулярные платежи.
+        await addMoneyAccounts(m);
+      }
     },
     beforeOpen: (details) async {
       await customStatement('PRAGMA foreign_keys = ON');
     },
   );
+
+  /// Добавить колонки, которых ещё нет: миграция переживает повторный запуск и смену номеров версий.
+  Future<void> addMissingColumns(Migrator m, TableInfo<Table, Object?> table, List<GeneratedColumn<Object>> columns) async {
+    final cols = await customSelect('PRAGMA table_info("${table.actualTableName}")').get();
+    final have = {for (final c in cols) c.read<String>('name')};
+    for (final c in columns) {
+      if (!have.contains(c.name)) await m.addColumn(table, c);
+    }
+  }
+
+  /// Создать таблицы, которых ещё нет.
+  Future<void> createMissingTables(Migrator m, List<TableInfo<Table, Object?>> tables) async {
+    for (final t in tables) {
+      final found = await customSelect(
+        "SELECT name FROM sqlite_master WHERE type = 'table' AND name = ?",
+        variables: [Variable<String>(t.actualTableName)],
+      ).get();
+      if (found.isEmpty) await m.createTable(t);
+    }
+  }
+
+  /// Счета появились в версии 5. Старые операции и взносы относим к счёту «Карта»,
+  /// чтобы остаток сразу считался; его можно поправить, указав, сколько на карте сейчас.
+  Future<void> addMoneyAccounts(Migrator m) async {
+    await createMissingTables(m, [accounts, transfers, recurrings]);
+    await addMissingColumns(m, transactions, [transactions.accountId]);
+    await addMissingColumns(m, fundMoves, [fundMoves.accountId]);
+    final hasAccounts = (await customSelect('SELECT id FROM accounts LIMIT 1').get()).isNotEmpty;
+    final hasTxs = (await customSelect('SELECT id FROM transactions LIMIT 1').get()).isNotEmpty;
+    if (!hasAccounts && hasTxs) {
+      final id = await into(accounts).insert(AccountsCompanion.insert(name: 'Карта', sortOrder: const Value(1)));
+      await customStatement('UPDATE transactions SET account_id = ? WHERE account_id IS NULL', [id]);
+    }
+  }
 
   /// Раньше тяжёлый день хранился одной настройкой и забывался на следующий день. Переносим его в таблицу.
   Future<void> moveLegacyHardDay() async {
@@ -427,6 +779,14 @@ class AppDatabase extends _$AppDatabase {
     final day = int.tryParse(row?.read<String>('value') ?? '');
     if (day != null) await customStatement('INSERT OR IGNORE INTO hard_days (day) VALUES (?)', [day]);
     await customStatement("DELETE FROM settings WHERE key = 'bad_day'");
+  }
+
+  /// Блюда из шаблона «Мой план» были без жиров и углеводов: дописываем их и в блюда, и в уже записанную еду.
+  Future<void> fillTemplateMacros() async {
+    for (final (name, fat, carbs) in templateFoodMacros) {
+      await customStatement('UPDATE foods SET fat = ?, carbs = ? WHERE name = ? AND fat = 0 AND carbs = 0', [fat, carbs, name]);
+      await customStatement('UPDATE meals SET fat = ?, carbs = ? WHERE name = ? AND fat = 0 AND carbs = 0', [fat, carbs, name]);
+    }
   }
 
   /// Заменить эмодзи из старых версий на ключи иконок. Неизвестные значения не трогает.

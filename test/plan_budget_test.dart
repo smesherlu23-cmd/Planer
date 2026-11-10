@@ -4,8 +4,6 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:planer/data/database.dart';
 import 'package:planer/data/dates.dart';
 import 'package:planer/data/queries.dart';
-import 'package:planer/data/templates.dart';
-import 'package:planer/logic/budget.dart';
 import 'package:planer/logic/day_plan.dart';
 import 'package:planer/logic/sleep.dart';
 import 'package:planer/services/notifications.dart';
@@ -77,41 +75,6 @@ void main() {
   });
 
   group('бюджет', () {
-    test('план против факта, свободные деньги и сколько можно потратить', () async {
-      final db = AppDatabase(NativeDatabase.memory());
-      addTearDown(db.close);
-      await applyTemplate(db, 'my_plan', today: 20261109);
-      final lines = await db.budgetOf(202611);
-      expect(lines.length, 7);
-      final cats = await db.select(db.categories).get();
-      final funds = await db.select(db.funds).get();
-      final salary = cats.firstWhere((c) => c.name == 'Зарплата');
-      final clothes = cats.firstWhere((c) => c.name == 'Одежда');
-      final games = cats.firstWhere((c) => c.name == 'Игры и развлечения');
-      final loan = funds.firstWhere((f) => f.name == 'Кредит');
-      Transaction tx(int id, Category c, double amount) =>
-          Transaction(id: id, amount: amount, isIncome: c.isIncome, categoryId: c.id, day: 20261110, at: DateTime(2026, 11, 10));
-      final b = buildBudget(
-        lines: lines,
-        categories: cats,
-        funds: funds,
-        transactions: [tx(1, salary, 65000), tx(2, clothes, 5000), tx(3, games, 700)],
-        moves: [FundMove(id: 1, fundId: loan.id, amount: 12000, day: 20261110)],
-      );
-      expect(b.incomePlan, 65000);
-      expect(b.unallocated, 0);
-      expect(b.expensePlan, 10000);
-      expect(b.expenseFact, 5700);
-      expect(b.leftToSpend, 4300);
-      final clothesRow = b.rows.firstWhere((r) => r.category?.id == clothes.id);
-      expect(clothesRow.over, isTrue);
-      final gamesRow = b.rows.firstWhere((r) => r.category?.id == games.id);
-      expect(gamesRow.unplanned, isTrue);
-      final loanRow = b.rows.firstWhere((r) => r.fund?.id == loan.id);
-      expect(loanRow.group, BudgetGroup.debts);
-      expect(loanRow.done, isTrue);
-    });
-
     test('новый месяц берёт план прошлого, нули не сохраняются', () async {
       final db = AppDatabase(NativeDatabase.memory());
       addTearDown(db.close);

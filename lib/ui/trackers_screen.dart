@@ -22,43 +22,47 @@ class TrackersScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final db = context.db;
-    return Scaffold(
-      appBar: AppBar(
-        title: Text(archived ? 'Трекеры в архиве' : 'Трекеры'),
-        actions: [
-          if (!archived)
-            IconButton(
-              tooltip: 'Архив',
-              icon: const Icon(Icons.inventory_2_rounded),
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackersScreen(archived: true))),
-            ),
-        ],
-      ),
-      floatingActionButton: archived
-          ? null
-          : FloatingActionButton(
-              heroTag: null,
-              onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackerEditScreen())),
-              child: const Icon(Icons.add_rounded),
-            ),
-      body: Watch(
-        streams: () => [db.watchTrackers(archived: archived), db.watchAllEntries()],
-        builder: (context, v) {
-          final trackers = v[0] as List<Tracker>;
-          final entries = v[1] as List<TrackerEntry>;
-          if (trackers.isEmpty) {
-            return EmptyHint(
-              icon: Icons.show_chart_rounded,
-              archived
-                  ? 'В архиве пусто.'
-                  : 'Трекер хранит любую величину с историей: вес, время кода, настроение, уровень Faceit. Нажми +, чтобы добавить.',
+    return ScrollFabScope(
+      child: Scaffold(
+        appBar: AppBar(
+          title: Text(archived ? 'Трекеры в архиве' : 'Трекеры'),
+          actions: [
+            if (!archived)
+              IconButton(
+                tooltip: 'Архив',
+                icon: const Icon(Icons.inventory_2_rounded),
+                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackersScreen(archived: true))),
+              ),
+          ],
+        ),
+        floatingActionButton: ScrollFab(
+          child: archived
+              ? null
+              : FloatingActionButton(
+                  heroTag: null,
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => const TrackerEditScreen())),
+                  child: const Icon(Icons.add_rounded),
+                ),
+        ),
+        body: Watch(
+          streams: () => [db.watchTrackers(archived: archived), db.watchAllEntries()],
+          builder: (context, v) {
+            final trackers = v[0] as List<Tracker>;
+            final entries = v[1] as List<TrackerEntry>;
+            if (trackers.isEmpty) {
+              return EmptyHint(
+                icon: Icons.show_chart_rounded,
+                archived
+                    ? 'В архиве пусто.'
+                    : 'Трекер хранит любую величину с историей: вес, время кода, настроение, уровень Faceit. Нажми +, чтобы добавить.',
+              );
+            }
+            return ListView(
+              padding: const EdgeInsets.only(top: 4, bottom: 96),
+              children: [for (final t in trackers) _TrackerCard(tracker: t, entries: entries, archived: archived)],
             );
-          }
-          return ListView(
-            padding: const EdgeInsets.only(top: 4, bottom: 96),
-            children: [for (final t in trackers) _TrackerCard(tracker: t, entries: entries, archived: archived)],
-          );
-        },
+          },
+        ),
       ),
     );
   }
@@ -447,135 +451,142 @@ class TrackerDetailScreen extends StatelessWidget {
         final theme = Theme.of(context);
         final muted = theme.colorScheme.onSurfaceVariant;
         final last = series.lastOrNull;
-        return Scaffold(
-          appBar: AppBar(
-            title: Text(t.name),
-            actions: [
-              IconButton(
-                icon: const Icon(Icons.edit_rounded),
-                tooltip: 'Изменить',
-                onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrackerEditScreen(tracker: t))),
-              ),
-            ],
-          ),
-          floatingActionButton: t.archived
-              ? null
-              : FloatingActionButton.extended(
-                  heroTag: null,
-                  onPressed: () => showEntryDialog(context, t),
-                  icon: const Icon(Icons.add_rounded),
-                  label: const Text('Записать'),
+        return ScrollFabScope(
+          child: Scaffold(
+            appBar: AppBar(
+              title: Text(t.name),
+              actions: [
+                IconButton(
+                  icon: const Icon(Icons.edit_rounded),
+                  tooltip: 'Изменить',
+                  onPressed: () => Navigator.push(context, MaterialPageRoute(builder: (_) => TrackerEditScreen(tracker: t))),
                 ),
-          body: ListView(
-            padding: const EdgeInsets.only(bottom: 110),
-            children: [
-              Card(
-                child: Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          ItemIcon(t.icon, size: 56, fallback: 'chart'),
-                          const SizedBox(width: 14),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(last == null ? 'Пока нет записей' : 'Последнее: ${dayLabel(last.$1)}', style: TextStyle(color: muted)),
-                                if (last != null)
-                                  FittedBox(
-                                    fit: BoxFit.scaleDown,
-                                    alignment: Alignment.centerLeft,
-                                    child: Text(formatTrackerValue(t, last.$2), style: theme.textTheme.headlineMedium),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Wrap(
-                        spacing: 6,
-                        runSpacing: 6,
-                        children: [
-                          Pill(trackerKindLabel(t.kind), color: Accent.trackers),
-                          if (t.daysMask != 0) Pill('на «Сегодня»: ${maskLabel(t.daysMask)}'),
-                          if (t.reminderMinutes != null) Pill(formatMinutes(t.reminderMinutes!), icon: Icons.alarm_rounded),
-                          if (goal != null) Pill(goal.name, icon: Icons.flag_rounded, color: Accent.goals),
-                        ],
-                      ),
-                      const SizedBox(height: 14),
-                      Text.rich(
-                        TextSpan(
+              ],
+            ),
+            floatingActionButton: ScrollFab(
+              child: t.archived
+                  ? null
+                  : FloatingActionButton.extended(
+                      heroTag: null,
+                      onPressed: () => showEntryDialog(context, t),
+                      icon: const Icon(Icons.add_rounded),
+                      label: const Text('Записать'),
+                    ),
+            ),
+            body: ListView(
+              padding: const EdgeInsets.only(bottom: 110),
+              children: [
+                Card(
+                  child: Padding(
+                    padding: const EdgeInsets.all(20),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
                           children: [
-                            TextSpan(
-                              text: 'За 30 дней: ',
-                              style: TextStyle(color: muted),
-                            ),
-                            TextSpan(
-                              text: summary30.label,
-                              style: const TextStyle(fontWeight: FontWeight.w600),
+                            ItemIcon(t.icon, size: 56, fallback: 'chart'),
+                            const SizedBox(width: 14),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    last == null ? 'Пока нет записей' : 'Последнее: ${dayLabel(last.$1)}',
+                                    style: TextStyle(color: muted),
+                                  ),
+                                  if (last != null)
+                                    FittedBox(
+                                      fit: BoxFit.scaleDown,
+                                      alignment: Alignment.centerLeft,
+                                      child: Text(formatTrackerValue(t, last.$2), style: theme.textTheme.headlineMedium),
+                                    ),
+                                ],
+                              ),
                             ),
                           ],
                         ),
-                      ),
-                      if (hasLevels) ...[
-                        const SizedBox(height: 10),
+                        const SizedBox(height: 14),
                         Wrap(
                           spacing: 6,
                           runSpacing: 6,
                           children: [
-                            Pill('норма: ${levels30.where((l) => l == Level.full).length} дн.', color: Accent.habits),
-                            Pill('минимум: ${levels30.where((l) => l == Level.minimum).length} дн.', color: Accent.reminders),
-                            if (levels30.any((l) => l == Level.below))
-                              Pill('меньше: ${levels30.where((l) => l == Level.below).length} дн.'),
+                            Pill(trackerKindLabel(t.kind), color: Accent.trackers),
+                            if (t.daysMask != 0) Pill('на «Сегодня»: ${maskLabel(t.daysMask)}'),
+                            if (t.reminderMinutes != null) Pill(formatMinutes(t.reminderMinutes!), icon: Icons.alarm_rounded),
+                            if (goal != null) Pill(goal.name, icon: Icons.flag_rounded, color: Accent.goals),
                           ],
                         ),
+                        const SizedBox(height: 14),
+                        Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(
+                                text: 'За 30 дней: ',
+                                style: TextStyle(color: muted),
+                              ),
+                              TextSpan(
+                                text: summary30.label,
+                                style: const TextStyle(fontWeight: FontWeight.w600),
+                              ),
+                            ],
+                          ),
+                        ),
+                        if (hasLevels) ...[
+                          const SizedBox(height: 10),
+                          Wrap(
+                            spacing: 6,
+                            runSpacing: 6,
+                            children: [
+                              Pill('норма: ${levels30.where((l) => l == Level.full).length} дн.', color: Accent.habits),
+                              Pill('минимум: ${levels30.where((l) => l == Level.minimum).length} дн.', color: Accent.reminders),
+                              if (levels30.any((l) => l == Level.below))
+                                Pill('меньше: ${levels30.where((l) => l == Level.below).length} дн.'),
+                            ],
+                          ),
+                        ],
+                        if (thresholdsLabel(t) case final norm?) ...[
+                          const SizedBox(height: 8),
+                          Text('За день: $norm', style: TextStyle(color: muted)),
+                        ],
                       ],
-                      if (thresholdsLabel(t) case final norm?) ...[
-                        const SizedBox(height: 8),
-                        Text('За день: $norm', style: TextStyle(color: muted)),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              if (t.kind != TrackerKind.yesNo)
-                Card(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(8, 18, 16, 10),
-                    child: LineChart(
-                      points: chartPoints,
-                      color: Accent.trackers,
-                      target: t.kind == TrackerKind.duration ? t.dailyGoal : (goal?.targetValue ?? t.dailyGoal),
                     ),
                   ),
                 ),
-              const SectionTitle('Записи'),
-              if (entries.isEmpty) const Card(child: EmptyHint('Пока нет записей', icon: Icons.edit_note_rounded)),
-              if (entries.isNotEmpty)
-                GroupCard(
-                  children: [
-                    for (final e in entries)
-                      ListTile(
-                        leading: _DayColumn(e.day),
-                        title: Text(formatTrackerValue(t, e.value), style: const TextStyle(fontWeight: FontWeight.w600)),
-                        subtitle: e.note == null ? null : Text(e.note!),
-                        onTap: () => showEntryDialog(context, t, existing: e),
-                        trailing: IconButton(
-                          icon: const Icon(Icons.delete_outline_rounded),
-                          onPressed: () async {
-                            if (await confirm(context, 'Удалить запись?', ok: 'Удалить', danger: true)) {
-                              await db.deleteById(db.trackerEntries, e.id);
-                            }
-                          },
-                        ),
+                if (t.kind != TrackerKind.yesNo)
+                  Card(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(8, 18, 16, 10),
+                      child: LineChart(
+                        points: chartPoints,
+                        color: Accent.trackers,
+                        target: t.kind == TrackerKind.duration ? t.dailyGoal : (goal?.targetValue ?? t.dailyGoal),
                       ),
-                  ],
-                ),
-            ],
+                    ),
+                  ),
+                const SectionTitle('Записи'),
+                if (entries.isEmpty) const Card(child: EmptyHint('Пока нет записей', icon: Icons.edit_note_rounded)),
+                if (entries.isNotEmpty)
+                  GroupCard(
+                    children: [
+                      for (final e in entries)
+                        ListTile(
+                          leading: _DayColumn(e.day),
+                          title: Text(formatTrackerValue(t, e.value), style: const TextStyle(fontWeight: FontWeight.w600)),
+                          subtitle: e.note == null ? null : Text(e.note!),
+                          onTap: () => showEntryDialog(context, t, existing: e),
+                          trailing: IconButton(
+                            icon: const Icon(Icons.delete_outline_rounded),
+                            onPressed: () async {
+                              if (await confirm(context, 'Удалить запись?', ok: 'Удалить', danger: true)) {
+                                await db.deleteById(db.trackerEntries, e.id);
+                              }
+                            },
+                          ),
+                        ),
+                    ],
+                  ),
+              ],
+            ),
           ),
         );
       },

@@ -16,8 +16,26 @@ SleepLog night(int id, int wakeDay, int bed, int wake) {
   return SleepLog(id: id, day: wakeDay, bedAt: t.bedAt, wakeAt: t.wakeAt);
 }
 
-/// Убрать из базы всё, что появилось в версии 3.
+/// Убрать из базы всё, что появилось в версии 5.
+Future<void> downgradeToV4(AppDatabase db) async {
+  for (final (table, column) in [('foods', 'grams'), ('foods', 'ingredients'), ('meals', 'grams')]) {
+    await db.customStatement('ALTER TABLE "$table" DROP COLUMN "$column"');
+  }
+  await db.customStatement('PRAGMA user_version = 4');
+}
+
+/// Убрать из базы всё, что появилось в версиях 4 и 5.
+Future<void> downgradeToV3(AppDatabase db) async {
+  await downgradeToV4(db);
+  for (final (table, column) in [('foods', 'fat'), ('foods', 'carbs'), ('meals', 'fat'), ('meals', 'carbs'), ('meals', 'slot')]) {
+    await db.customStatement('ALTER TABLE "$table" DROP COLUMN "$column"');
+  }
+  await db.customStatement('PRAGMA user_version = 3');
+}
+
+/// Убрать из базы всё, что появилось в версиях 3 и 4.
 Future<void> downgradeToV2(AppDatabase db) async {
+  await downgradeToV3(db);
   for (final t in ['budget_lines', 'time_blocks', 'hard_days']) {
     await db.customStatement('DROP TABLE "$t"');
   }
@@ -67,9 +85,19 @@ void main() {
 
   test('питание: итог дня и норма калорий', () {
     final meals = [
-      Meal(id: 1, day: 20261109, at: DateTime(2026, 11, 9, 8), name: 'Завтрак', icon: 'breakfast', kcal: 700, protein: 30),
-      Meal(id: 2, day: 20261109, at: DateTime(2026, 11, 9, 13), name: 'Обед', icon: 'lunch', kcal: 750, protein: 50),
-      Meal(id: 3, day: 20261108, at: DateTime(2026, 11, 8, 13), name: 'Обед', icon: 'lunch', kcal: 750, protein: 50),
+      Meal(
+        id: 1,
+        day: 20261109,
+        at: DateTime(2026, 11, 9, 8),
+        name: 'Завтрак',
+        icon: 'breakfast',
+        kcal: 700,
+        protein: 30,
+        fat: 20,
+        carbs: 90,
+      ),
+      Meal(id: 2, day: 20261109, at: DateTime(2026, 11, 9, 13), name: 'Обед', icon: 'lunch', kcal: 750, protein: 50, fat: 20, carbs: 90),
+      Meal(id: 3, day: 20261108, at: DateTime(2026, 11, 8, 13), name: 'Обед', icon: 'lunch', kcal: 750, protein: 50, fat: 20, carbs: 90),
     ];
     final water = [
       WaterLog(id: 1, day: 20261109, at: DateTime(2026, 11, 9, 9), ml: 250),
@@ -87,12 +115,54 @@ void main() {
     expect(kcalOnTarget(2300, lose), isFalse);
   });
 
+  test('норма питания по формуле Миффлина — Сан Жеора', () {
+    const body = Body(sex: Sex.male, age: 20, heightCm: 175, activity: Activity.moderate);
+    expect(restingKcal(body, 68), closeTo(1678.75, 0.01));
+    final plan = planFor(body, 68, FoodMode.gain);
+    expect(plan.maintenance, closeTo(2602, 1));
+    expect(plan.kcal, 2850);
+    expect(plan.protein, 120);
+    expect(plan.fat, 80);
+    expect(plan.carbs, 415);
+    expect(plan.water, 2000);
+    expect(plan.perMeal, closeTo(27.2, 0.01));
+    expect(planFor(body, 68, FoodMode.lose).kcal, 2100);
+    // Жиры и углеводы по умолчанию считаются из калорий и белка.
+    final g = FoodGoals.from({'food_kcal': '3000', 'food_protein': '130'});
+    expect(g.fat, 83);
+    expect(g.carbs, 433);
+    expect(kcalFromMacros(protein: 30, fat: 22, carbs: 95), 698);
+  });
+
+  test('приём пищи по времени и явно', () {
+    Meal meal(int hour, {int? slot}) => Meal(
+      id: 1,
+      day: 20261109,
+      at: DateTime(2026, 11, 9, hour),
+      name: 'x',
+      icon: 'x',
+      kcal: 1,
+      protein: 0,
+      fat: 0,
+      carbs: 0,
+      slot: slot,
+    );
+    expect(MealSlot.of(meal(8)), MealSlot.breakfast);
+    expect(MealSlot.of(meal(13)), MealSlot.lunch);
+    expect(MealSlot.of(meal(16)), MealSlot.snack);
+    expect(MealSlot.of(meal(19)), MealSlot.dinner);
+    expect(MealSlot.of(meal(8, slot: 3)), MealSlot.snack);
+  });
+
   test('подсказка по весу на наборе массы', () {
     const today = 20261121;
     List<(int, double)> series(double perDay) => [for (var i = 0; i <= 14; i++) (addDays(today, -14 + i), 67 + i * perDay)];
     expect(weightAdvice(series(0.0), FoodMode.gain, today: today)!.adjust, isTrue);
     expect(weightAdvice(series(0.03), FoodMode.gain, today: today)!.adjust, isFalse);
     expect(weightAdvice(series(0.1), FoodMode.gain, today: today)!.adjust, isTrue);
+    // Вес стоит: нужно примерно +0,25 кг в неделю, это около +280 ккал в день.
+    expect(weightAdvice(series(0.0), FoodMode.gain, today: today)!.kcalDelta, 300);
+    expect(weightAdvice(series(0.1), FoodMode.gain, today: today)!.kcalDelta, lessThan(0));
     // Мало дней: подсказки нет.
     expect(weightAdvice([(today - 3, 67.0), (today, 67.5)], FoodMode.gain, today: today), isNull);
   });
@@ -161,6 +231,31 @@ void main() {
     expect(habits.map((h) => h.icon), ['code', '🦄']);
     await db.addWater(250, day: 20261109);
     expect((await db.waterBetween(20261109, 20261109)).single.ml, 250);
+  });
+
+  test('переход с версии 3: жиры и углеводы у блюд шаблона', () async {
+    final dir = await Directory.systemTemp.createTemp('planer_migration4');
+    addTearDown(() => dir.delete(recursive: true));
+    final file = File('${dir.path}/db.sqlite');
+    final current = AppDatabase(NativeDatabase(file));
+    await downgradeToV3(current);
+    await current.customStatement(
+      "INSERT INTO foods (name, icon, kcal, protein, sort_order, archived) VALUES ('Банан', 'fruit', 100, 1, 1, 0)",
+    );
+    await current.customStatement(
+      "INSERT INTO foods (name, icon, kcal, protein, sort_order, archived) VALUES ('Своё', 'fruit', 300, 10, 2, 0)",
+    );
+    await current.customStatement("INSERT INTO meals (day, at, name, icon, kcal, protein) VALUES (20261109, 0, 'Банан', 'fruit', 100, 1)");
+    await current.close();
+
+    final db = AppDatabase(NativeDatabase(file));
+    addTearDown(db.close);
+    final foods = await db.select(db.foods).get();
+    expect(foods.firstWhere((f) => f.name == 'Банан').carbs, 23);
+    expect(foods.firstWhere((f) => f.name == 'Своё').carbs, 0);
+    final meal = (await db.select(db.meals).get()).single;
+    expect(meal.carbs, 23);
+    expect(meal.slot, isNull);
   });
 
   test('переход с версии 2: тяжёлый день из настройки переезжает в таблицу', () async {

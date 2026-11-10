@@ -17,6 +17,7 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../data/database.dart';
 import '../data/dates.dart';
+import '../logic/focus.dart';
 import '../logic/sleep.dart';
 
 /// Одно повторяющееся напоминание: в какие дни недели и во сколько.
@@ -118,6 +119,48 @@ List<PlannedNotification> planNotifications({
   return result;
 }
 
+/// Разовое напоминание в конкретный момент: задача со временем или конец таймера фокуса.
+class OnceNotification {
+  const OnceNotification({required this.id, required this.title, required this.body, required this.at});
+  final int id;
+  final String title;
+  final String body;
+  final DateTime at;
+}
+
+const focusNotificationId = 89999990;
+
+/// Разовые напоминания, которые ещё впереди.
+List<OnceNotification> planOnceNotifications({required List<Task> tasks, FocusState? focus, required DateTime now}) {
+  final result = <OnceNotification>[];
+  for (final t in tasks) {
+    if (!t.remind || t.doneDay != null || t.day == null || t.time == null) continue;
+    final d = dayFromKey(t.day!);
+    final at = DateTime(d.year, d.month, d.day, t.time! ~/ 60, t.time! % 60);
+    if (!at.isAfter(now)) continue;
+    result.add(
+      OnceNotification(
+        id: 70000000 + t.id,
+        title: t.title,
+        body: [if (t.estimate != null) 'Займёт около ${formatDuration(t.estimate!)}', if (t.note != null) t.note!].join('. '),
+        at: at,
+      ),
+    );
+  }
+  final end = focus?.end;
+  if (focus != null && end != null && end.isAfter(now)) {
+    result.add(
+      OnceNotification(
+        id: focusNotificationId,
+        title: focus.isBreak ? 'Перерыв окончен' : 'Фокус окончен: ${formatDuration(focus.minutes)}',
+        body: focus.isBreak ? 'Можно начинать следующий круг.' : 'Отрезок записан. Встань, разомнись, попей воды.',
+        at: end,
+      ),
+    );
+  }
+  return result;
+}
+
 class NotificationService {
   NotificationService(this.db);
 
@@ -150,7 +193,9 @@ class NotificationService {
     }
     // Любое изменение расписаний пересоздаёт напоминания.
     _sub = db
-        .tableUpdates(TableUpdateQuery.onAllTables([db.habits, db.trackers, db.programs, db.reminders, db.settings, db.timeBlocks]))
+        .tableUpdates(
+          TableUpdateQuery.onAllTables([db.habits, db.trackers, db.programs, db.reminders, db.settings, db.timeBlocks, db.tasks]),
+        )
         .listen((_) => _scheduleSoon());
     await reschedule();
   }
@@ -229,6 +274,23 @@ class NotificationService {
         );
         count++;
       }
+    }
+    final settings = {for (final r in await db.select(db.settings).get()) r.key: r.value};
+    final once = planOnceNotifications(
+      tasks: await db.select(db.tasks).get(),
+      focus: FocusState.decode(settings[focusSettingKey]),
+      now: DateTime.now(),
+    );
+    for (final n in once) {
+      await _plugin.zonedSchedule(
+        id: n.id,
+        title: n.title,
+        body: n.body,
+        scheduledDate: tz.TZDateTime.from(n.at, tz.local),
+        notificationDetails: _details,
+        androidScheduleMode: mode,
+      );
+      count++;
     }
     return count;
   }
